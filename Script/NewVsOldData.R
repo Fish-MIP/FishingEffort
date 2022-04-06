@@ -10,6 +10,11 @@ library("tidyverse")
 # library("networkD3")
 # library("tidyr")
 
+# NOTES: 
+# Check global effort and if it’s OK with older file - check each LME plot trends on same panel. 
+# Compare with original gridded files - are the global sum for 1 year the same? 
+# Data on isimip - to Matthias - DOI: https://data.isimip.org/datasets/98037e0f-04cd-41ea-a5e3-9e4b1e351418/
+
 # why were these saved in 2 different directories? 
 yannick_dir_new <- "/rd/gem/private/users/yannickr"
 yannick_dir_old <- "/rd/gem/private/DataYannick"
@@ -27,90 +32,140 @@ effort_old<-effort_old[2:nrow(effort_old), 2:ncol(effort_old)]
 head(effort_old)
 
 # explore by LME - some LMEs 
-# keep <- seq(30,50)
-
 sort(unique(effort_new$LME))
 sort(unique(effort_new$fao_area))
 sort(unique(effort_new$eez_country_name))
 
-keep <- 20 # WARNING: SEA OK but some differences eg LME 20 - same trend but lower value in old effort - is this due to different LME, EEZ, FAO aggregation??!
-
-head(effort_new)
+# head(effort_new)
 effort_mapped_new<-effort_new %>% 
-  filter(LME %in% keep) %>%
   group_by(Year, LME, Sector) %>% 
   summarise(effort = sum(NomActive, na.rm = TRUE)) %>% 
-  ungroup()
+  ungroup() %>% 
+  mutate(Version = "Old")
 
-ggplot(effort_mapped_new, aes(x = Year, y = effort, group = Sector, color = Sector))+ # 3e+08 
-  geom_line() +
-  facet_wrap(~LME, scale = "free")
-
-head(effort_old)
 # cannot do comparison at FAO or EEZ becasue these are missing from old dataset - need to load another dataset 
 effort_mapped_old<-effort_old %>% 
-  filter(LME %in% keep) %>%
   group_by(Year, LME, Sector) %>% 
   summarise(effort = sum(NomActive, na.rm = TRUE)) %>% 
-  ungroup()
+  ungroup()%>% 
+  mutate(Version = "New")
 
-ggplot(effort_mapped_old, aes(x = Year, y = effort, group = Sector, color = Sector))+ # 2e+08
-  geom_line()+
-  facet_wrap(~LME, scale = "free")
+effort_mapped_all<-effort_mapped_old %>% 
+  full_join(effort_mapped_new) 
 
-# check the LME 20 
-# WARNING - cannot see any difference - could these be due to NAs? 
-head(effort_new)
-unique(effort_new$Sector)
+# plot data 
+
+effort_list<-split(effort_mapped_all, effort_mapped_all$LME)
+
+# for multiple plotting.... 
+plot_effort<-list()
+# plot_effort_old<-list()
+# plot_catch<-list()
+# plot_catch_old<-list()
+# plotall<-list()
+
+for(i in 1:length(effort_list)){
+  
+  plot_effort[[i]]<-ggplot(effort_list[[i]], aes(x = Year, y = effort, color = Version, linetype = Sector))+
+    geom_line()+
+    labs(title = paste("LME",unique(effort_list[[i]]$LME),sep=" "), x="Year",y="Nominal effort (NomActive)")+ 
+    # scale_y_continuous(limits = c(limMin, limMax))+ # not sure about this .... 
+    theme_bw()+
+    theme(axis.text=element_text(size=9),
+          axis.title=element_text(size=9),
+          title=element_text(size=8))
+  
+  # layout<-"
+  # AABB
+  # ##CC"
+  # 
+  # plotall[[i]]<-plot_effort[[i]]+plot_effort_old[[i]]+plot_catch_old[[i]]+plot_layout(design = layout)
+  
+}
+
+# delete LME 0 BUT CHECK WITH JULIA 
+# plot_effort[[1]]<-NULL
+
+# print plots in pdf
+getwd()
+
+# # 4 plot per page - all effort 
+# install.packages("gridExtra")
+library("gridExtra")
+ggsave("Output/Summary_LME_NewVsOldData2.pdf", marrangeGrob(grobs = plot_effort, nrow=2, ncol=2), device = "pdf")
+# ggsave("EffortOld.pdf", marrangeGrob(grobs = plot_effort_old, nrow=2, ncol=2), device = "pdf")
+# ggsave("CatchOld.pdf", marrangeGrob(grobs = plot_catch_old, nrow=2, ncol=2), device = "pdf")
+
+# one page per LME
+pdf("Output/Summary_LME_NewVsOldData.pdf", width = 10, height=5)
+plot_effort
+dev.off()
+
+# WARNING 1: same LMEs show lower/higher trends for old effort - is this due to different LME, EEZ, FAO aggregation??!
+# WARNING 2: some LMEs show only one trend - is this becasue of perfect matching? 
+# WARNING 1 - pick an LME showing different trends and further check 
+keep <- 51 # worst are 47/51/2 
+# WARNING 2 - pick an LME not showing both trends  
+# keep <- 4 # e.g. 4 - YES perfect match makes one of the trends disappearing. 
+
 effort_mapped_new_FG<-effort_new %>% 
   filter(Sector == "I", LME %in% keep) %>%
   group_by(Year, LME, FGroup) %>% 
   summarise(effort = sum(NomActive, na.rm = TRUE)) %>% 
-  ungroup()
+  ungroup() %>% 
+  mutate(Version = "New")
 
-ggplot(filter(effort_mapped_new_FG, FGroup == "benthopelagic>=90cm"), aes(x = Year, y = effort, group = FGroup, color = FGroup))+ # 1.5e+08 pelagic 30-90, pelagic <30
-  geom_line() +
+ggplot(effort_mapped_new_FG, aes(x = Year, y = effort, color = Version))+ 
+  geom_line()+
+  theme_bw()+
   facet_wrap(~FGroup)
 
-head(effort_old)
-# cannot do comparison at FAO or EEZ becasue these are missing from old dataset - need to load another dataset 
 effort_mapped_old_FG<-effort_old %>% 
   filter(Sector == "I",LME %in% keep) %>%
   group_by(Year, LME, FGroup) %>% 
   summarise(effort = sum(NomActive, na.rm = TRUE)) %>% 
-  ungroup()
+  ungroup() %>% 
+  mutate(Version = "Old")
 
-ggplot(filter(effort_mapped_old_FG,FGroup =="benthopelagic>=90cm"), aes(x = Year, y = effort, group = FGroup, color = FGroup))+ # 1.5e+08 pelagic 30-90, pelagic <30
+ggplot(effort_mapped_old_FG, aes(x = Year, y = effort, color = Version))+ 
   geom_line()+
+  theme_bw()+
   facet_wrap(~FGroup)
+
+effort_mapped_all_FG<- effort_mapped_old_FG %>% 
+  full_join(effort_mapped_new_FG)
+
+# trends for most FG shifted up in new version - LME 47
+Plot_LME<-ggplot(effort_mapped_all_FG, aes(x = Year, y = effort, color = Version))+ 
+  geom_line()+
+  labs(title = paste("LME",unique(effort_mapped_all_FG$LME),sep=" "), x="Year",y="Nominal effort (NomActive)")+ 
+  theme_bw()+
+  theme(axis.text=element_text(size=9),
+        axis.title=element_text(size=9),
+        title=element_text(size=8))+
+  facet_wrap(~FGroup)
+
+pdf("Output/Summary_LME51_NewVsOldData.pdf", width = 10, height=7)
+Plot_LME
+dev.off()
 
 # explore NA in Fgroup - none
 filter(effort_old, is.na(FGroup))
 filter(effort_new, is.na(FGroup))
 
-# WARNING - can see differences again when I aggregate 
-effort_mapped_old_FG %>% summarise(trial = sum(effort)) # lower values in old effort 
+effort_mapped_old_FG %>% summarise(trial = sum(effort)) # different values when I aggregate  
 effort_mapped_new_FG %>% summarise(trial = sum(effort))
 
-effort_mapped_old_FG %>% group_by(Year) %>% summarise(trial = sum(effort)) # lower value in old effort 
+effort_mapped_old_FG %>% group_by(Year) %>% summarise(trial = sum(effort)) # different values by year  
 effort_mapped_new_FG %>% group_by(Year) %>% summarise(trial = sum(effort))
 
-View(effort_mapped_old_FG %>% group_by(FGroup) %>% summarise(trial = sum(effort))) # differences at FGoup level. Less of bathypelagic30-90cm, benthopelagic30-90cm, and many other...   
-View(effort_mapped_new_FG %>% group_by(FGroup) %>% summarise(trial = sum(effort)))
-
-View(effort_mapped_old_FG %>% filter(FGroup == "benthopelagic>=90cm") %>% group_by(Year) %>% summarise(trial = sum(effort))) 
-View(effort_mapped_new_FG %>% filter(FGroup == "benthopelagic>=90cm") %>% group_by(Year) %>% summarise(trial = sum(effort)))
-
-# back to original data for more exploration... it is possibly the aggregation to SAUP, EEZ, LME and FAO but hard to dsay from these outpts
-# need to explore the original file for mapped_1950_I_100.csv but all countries... Also it looks like it's happening in other sectors ... 
-effort_old %>% filter(LME == 20, FGroup == "benthopelagic>=90cm", Year == 1950) 
-effort_new %>% filter(LME == 20, FGroup == "benthopelagic>=90cm", Year == 1950) 
+# back to original data (e.g. mapped_1950_I_100.csv) for more exploration... it is possibly the aggregation to SAUP, EEZ, LME and FAO where different polygons have been used. 
 
 # ARRIVATA QUI
 
 
 
-
+# NOT SURE THE BELWO IS NEEDED OR IS PART OF THE REGIONAL VS GLOBAL EXPLORATION. MIGHT NEED TO MOVE THERE AND ACCORDING TO OLDER FILES SAVED IN LOCAL 
 
 
 
