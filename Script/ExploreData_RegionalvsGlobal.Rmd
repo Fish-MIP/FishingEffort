@@ -1,0 +1,644 @@
+---
+title: "Explore effort data - LME 42 - South East Australia"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+This file explores the global fishing effort data that will be used by the Fish-MIP community to force regional and global marine ecosystem models. To understand how this forcing can be integrated into regional models, we take the South East Australia system (LME 42) as a case study and aim at developing a framework that can be applied across regions (with necessary adjustments). We chose LME 42 because three ecosystem models are available for this region: Atlantis, EwE and Mizer. As a first step, we compares the LME 42 extraction of the global effort data with effort data used to force the three regional models. Specifically, we:  
+
+1. Check whether effort trends across these data match   
+2. Explore how the global effort can be allocated across regional models' fleets     
+
+Atlantis, EwE and Mizer differ in terms of area covered and fisheries considered, so some deviation in effort trends is expected:  
+
+* Atlantis is the more comprehensive model, it covers LME 42 and 43 and all main Commonwealth fisheries 
+* Mizer covers LME 42 and focuses on the commonwealth trawling and shark gillnet fishery  
+* EwE models the Bass Strait (a small subset of LME42) and considers both State and Commonwealth fisheries  
+
+These models can be considered nested in terms of:   
+
+* Area covered Atlantis -> Mizer -> EwE  
+* Fisheries and fleets considered: Atlantis -> EwE (or vice versa?) -> Mizer  
+This is key when interpreting trends in effort and exploring how effort can be allocated to fleets
+
+Effort is used differently across these models:  
+
+* Atlantis and EwE are forced by fishing effort   
+* Mizer is forced by either fishing mortality, or fish price and fisheries costs - effort is used only for validation aims.   
+
+Effort units:  
+
+* global data: days at sea X kW  
+* Atlantis data: days at sea    
+* EwE data: relative effort (days at sea also available now)  
+* Mizer data: number of operations   
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+## Load libraries 
+
+```{r libraries}
+
+rm(list=ls())
+
+# load libraries 
+library("ggplot2")
+library("tidyverse")
+library("patchwork")
+library("gridExtra")
+library("dplyr")
+library("networkD3")
+library("tidyr")
+
+```
+
+## Global effort data 
+
+### Load and explore data
+
+```{r effort global}
+
+# # OLD 
+# effort<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/TotalEffortby_FGroup_LME_Sector.csv")
+# effort<-effort[2:nrow(effort), 2:ncol(effort)]
+
+effort<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/DataYannick/TotalAggregatedFGroupLME.csv")
+effort<-effort[2:nrow(effort), 2:ncol(effort)]
+head(effort)
+
+# explore by LME - some LMEs 
+keep <- seq(30,50)
+
+effort_mapped<-effort %>% 
+  filter(Sector == "I", LME %in% keep) %>% 
+  group_by(Year, LME) %>% 
+  summarise(effort = sum(NomActive, na.rm = TRUE)) %>% 
+  ungroup()
+
+ggplot(effort_mapped, aes(x = Year, y = effort))+
+  geom_line()+
+  facet_wrap(~LME, scale = "free")
+
+# load effort unmapped
+# is teh pick for LME 42 present in the data before the mapping? kind of - but different trend with clear smoothing after the pick. ALos lots of smoothing pre mapping with all countries. 
+effort_unmapped<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/Final_DataStudyFAO_V5.csv")
+head(effort_unmapped)
+
+# explore by country - some countries
+keep<-unique(effort_unmapped$Country)[1:15]
+
+effort_unmappedA<-effort_unmapped %>% 
+  filter(Country %in% keep) %>% 
+  group_by(Year, Country) %>% 
+  summarise(effort = sum(NV, na.rm = TRUE)) %>% # look at number of vessels (NV) first - can also be NomEffort
+  ungroup()
+
+ggplot(effort_unmappedA, aes(x = Year, y = effort))+
+  geom_line()+
+  facet_wrap(~Country, scale = "free")
+
+# zoom in Au 
+effort_unmapped2<-effort_unmapped %>% 
+  filter(Country == "Australia") %>% 
+  group_by(Year) %>% 
+  summarise(effort = sum(NV, na.rm = TRUE)) %>% 
+  ungroup()
+
+ggplot(effort_unmapped2, aes(x = Year, y = effort))+
+  geom_line()
+
+# explore by coutry and by gear 
+effort_unmapped2B<-effort_unmapped %>% 
+  filter(Country == "Australia") %>% 
+  group_by(Year, Gear) %>% 
+  summarise(effort = sum(NV, na.rm = TRUE)) %>% 
+  ungroup()
+
+# Smoothing goes away as NV are allocated to the different gears based on a value that changes by year and given data on e.g. power 
+ggplot(effort_unmapped2B, aes(x = Year, y = effort))+
+  geom_line()+
+  facet_wrap(~Gear, scale = "free")
+
+# most influential gears in determining the smooth pattern: 
+# "Gillnets","Lines_Longlines","Seine_Danish_and_Other","Lines_Handlines_and_poles", "Others_Support"                  
+
+effort_unmapped3<-effort_unmapped %>% 
+  filter(Country == "Australia", !Gear %in% c("Gillnets","Lines_Longlines","Seine_Danish_and_Other","Lines_Handlines_and_poles", "Others_Support")) %>% 
+  group_by(Year) %>% 
+  dplyr::summarise(effort = sum(NV, na.rm=TRUE)) %>% 
+  ungroup()
+
+ggplot(effort_unmapped3, aes(x = Year, y = effort))+
+  geom_line()
+
+```
+
+Explanation of key columns (For more info on the global effort file check Rousseau et al. in prep):  
+
+* FGroup = functional group   
+* NomActive = effort in days at sea X kW (not creep-corrected)    
+* EffActive = effort in days at sea X kW (creep-corrected)  
+* NomActiveHours = effort in hours X kW (not creep-corrected) - *in old file version* 
+* EffActiveHours = effort in hours X kW (creep-corrected) -  *in old file version* 
+* Sectors = three main fishing sectors considered: I = Industrial, UP = un-powered artisanal, APW = artisanal powered    
+
+NOTE: an updated version of this dataset will be provided. THis version will also include 'gear' and 'fishing country'.  
+
+### Data manipulation
+
+```{r global2, fig.width=10, fig.height=7}
+
+# Load LME and FAO codes
+lme<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Fishing data/LME_FAO_coding.csv")
+
+# Calculate effort by LME, Year, Sector and Fleet
+effort_global<-effort %>% 
+  mutate(Fleet = FGroup) %>% # note - fleet should be based on fishing gear and target group  
+  group_by(LME, Year, Sector, Fleet) %>% 
+  summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(Year = as.numeric(Year)) 
+
+# Add info from lme file - e.g. 'FAO' code or 'zone'
+lme<-lme %>% 
+  `colnames<-`(c("zone", "code","LME", "area")) %>% # rename columns as per effort data
+  filter(code == "LME") %>% # select only LME and do not consider FAO (can also do the opposite)
+  dplyr::select(-code, -area)
+
+# Merge LME to effort data 
+effort_global<-effort_global %>% 
+  left_join(lme)
+
+# Split effort by LME 
+effort_list<-split(effort_global, effort_global$LME)
+
+# Select South East Australia = LME 42
+effort_global<-effort_list$'42'
+
+# Select the fishing sector you want to focus on, unless you are considering all sectors
+ggplot(effort_global, aes(x = Year, y = NomActive, group = Sector, color = Sector))+
+  geom_point(size=0.5)+
+  geom_line()+
+  theme_bw()+
+  facet_wrap(~Fleet)
+effort_global<-effort_global %>% filter(Sector == "I")
+
+# WARNING - outliers?  
+# effort_global<-effort_global %>% filter(NomActive < 3e+07)
+
+# Change columns names - more informative 
+colnames(effort_global)<-c("LME","Year","Sector","Fleet" ,"Global_effort_DayKW", "Zone")
+
+# Aggregate effort by year 
+effort_global_aggregated<-effort_global %>% 
+  group_by(Year) %>% 
+  summarise(Global_effort_DayKW = sum(Global_effort_DayKW, na.rm = TRUE))
+
+ggplot(effort_global_aggregated, aes(x = Year, y = Global_effort_DayKW))+
+  geom_line()+
+  theme_bw()
+
+```
+
+## Regional effort data
+
+### Atlantis
+
+```{r Atlantis, fig.width=10, fig.height=7}
+
+# Two datasets available - see Beth's email "Effort and catch data from south east Australian models" 
+effort_atlantis<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/Atlantis/1910-2003 SESSF hist info_effort.csv")
+
+# Calculate effort by fleet and year 
+effort_atlantis<-effort_atlantis %>% 
+  gather(key = "Type", value = "Effort",-Time)
+
+# ggplot(effort_atlantis, aes(x = Time, y = Effort))+ 
+#   geom_point(size = 0.5)+
+#   geom_line()+
+#   facet_wrap(~Type, scale = "free_y")+
+#   theme_bw()
+
+# WARNINGS - discussion with the modeller 
+# WARNING - possible outlier 
+effort_atlantis<-filter(effort_atlantis, Effort != 6.240000e+11)
+
+# WARNING - some fleets only have 1 value in 2000, should they be filtered out? 
+# out<-c("Abalone.divers", "Crab.trawl", "Demersal.line.for.deepwater.piscivorous.fish", "Lobster.pots", "Midwater.trawl.for.cephalopods", "Midwater.trawl.for.finfish", "Midwater.trawl.for.small.pelagics", "Lobster.pots", "Purse.seine.for.piscivorous.fish", "Purse.seine.for.small.pelagics", "Scallop.dredge","Jig.for.cephalopods","Traps.for.finfish")
+# effort_atlantis<-effort_atlantis %>% filter(!Type %in% out)
+
+# WARNING - are we double accounting for some of the effort - e.g. are Bottom.trawl.for.deepwater.demersal.fish;  Bottom.trawl.for.flathead; Bottom.trawl.for.orange.roughy somehow overlapping? discussed with Beth: not overlapping
+
+# WARNING - purse.seine for large predator drives patters. Discussed with Beth: filter out
+effort_atlantis<-effort_atlantis %>% filter(Type != "Purse.seine.for.large.pelagics")
+
+# Change columns names - more informative
+colnames(effort_atlantis)<-c("Year", "Fleet", "Atl_effort_day")
+
+# Plot final data 
+ggplot(effort_atlantis, aes(x = Year, y = Atl_effort_day))+
+  geom_point(size = 0.5)+
+  geom_line()+
+  theme_bw()+
+  facet_wrap(~Fleet)
+
+# Aggregate effort by year
+effort_atlantis_aggregated<- effort_atlantis %>% 
+  group_by(Year) %>% 
+  summarise(Atl_effort_day = sum(Atl_effort_day, na.rm = TRUE))
+
+```
+
+### Mizer
+
+```{r Mizer, fig.width=6, fig.height=4}
+
+load("/Users/camillan/R-projects/mixed_fisheries_tradeoff/data/Mixed_fisheries_tradeoff.RData")
+effort_mizer = datValidationEffort
+
+# WARNING - discuss with modeller
+# WARNING - check that this is the most updated file
+# WARNING - filter fleets that have not been considered 
+effort_mizer<-filter(effort_mizer, metier != "Great Australian Bight - Trawl fishery")
+
+# Change columns names - more informative
+colnames(effort_mizer)<-c("Fleet","Year", "Mz_effort_opn")
+
+ggplot(effort_mizer, aes(x = Year, y = Mz_effort_opn, group = Fleet))+
+  geom_point(size = 0.5)+
+  geom_line()+
+  theme_bw()+
+  facet_wrap(~Fleet)
+
+# Aggregate effort by year
+effort_mizer_aggregated <- effort_mizer %>% 
+  group_by(Year) %>% 
+  summarise(Mz_effort_opn = sum(Mz_effort_opn, na.rm= TRUE))
+
+```
+
+### EwE
+
+```{r EwE, fig.width=6, fig.height=4}
+
+# See Cathy's email "effort and catch data from south east Australian models" 25/02/2022
+effort_ewe<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/EwE/Fleet2020 1994-2100revised.csv")
+effort_ewe<-effort_ewe[-c(1,2),]
+
+# WARNING - discuss with the modeller
+# WARNING - this file includes projections - cut the data to 2020
+# WARNING - squidJigs drives patters and rec fishing is not used. Discussed with Cathy and Beth: filter out 
+effort_ewe<-effort_ewe %>% 
+  gather("Fleet","Effort",-Name) %>% 
+  mutate(Name = as.numeric(Name)) %>% 
+  filter(Name <= 2020) %>% 
+  filter(!Fleet %in% c("SquidEffort","Rec"))
+
+# Change columns names - more informative
+colnames(effort_ewe)<-c("Year", "Fleet","Ewe_effort_relative")
+
+ggplot(effort_ewe, aes(x = Year, y = Ewe_effort_relative))+ 
+  geom_point(size = 0.5)+
+  geom_line()+
+  facet_wrap(~Fleet)+
+  theme_bw()
+
+# Aggregate effort by year
+# WARNING - this is relative effort time series currently used to force the model. How do we merge these effort values? Here summed by year but data will be replaced.  
+effort_ewe_aggregated<-effort_ewe %>% 
+  group_by(Year) %>% 
+  summarise(Ewe_effort_relative = sum(Ewe_effort_relative))
+
+```
+
+## Regional vs global
+
+```{r all, fig.width=6, fig.height=4}
+
+# Combine all effort data 
+combined_effort<-effort_global_aggregated %>% 
+  full_join(effort_atlantis_aggregated) %>% 
+  full_join(effort_mizer_aggregated) %>% 
+  full_join(effort_ewe_aggregated) %>% 
+  dplyr::select(Year,Global_effort_DayKW, Atl_effort_day, Mz_effort_opn, Ewe_effort_relative) %>% 
+  gather(key = "Type", value = "Effort", -Year)
+
+# Plot final data 
+effort_plot<-ggplot(combined_effort, aes(x = Year, y = Effort))+
+  geom_line(size = 1.2)+
+  geom_vline(xintercept = 2005, linetype = "dashed")+
+  facet_wrap(~Type, scales = "free_y")+
+  theme_bw()
+effort_plot
+
+# # Save plot 
+# setwd("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/")
+# pdf("Effort_LME42.pdf", width = 8, height=5)
+# effort_plot
+# dev.off()
+
+# # PROBLEM - different effort units across datasets 
+# # INDEPENDENTLY scaled from 0 to 1 to plot together. This is not a solution - could also do relative changes as but relative to different years?? 
+# range01 <- function(x){(x-min(x, na.rm = TRUE))/(max(x, na.rm = TRUE)-min(x, na.rm = TRUE))}
+# SEA_effort_global_aggregated$Global_effort_scaled<-range01(SEA_effort_global_aggregated$Global_effort_DayKW)
+# effort_atlantis_aggregated$Atl_effort_scaled<-range01(effort_atlantis_aggregated$Atl_effort_day)
+# effort_mizer_aggregated$Mz_effort_scaled<-range01(effort_mizer_aggregated$Mz_effort_opn)
+# effort_ewe_aggregated$Ewe_effort_scaled<-range01(effort_ewe_aggregated$Ewe_effort_relative)
+# 
+# # Combine the 2 datasets again:
+# combined_effort<-SEA_effort_global_aggregated %>% 
+#   full_join(effort_atlantis_aggregated) %>% 
+#   full_join(effort_mizer_aggregated) %>% 
+#   full_join(effort_ewe_aggregated) %>% 
+#   dplyr::select(Year,Global_effort_scaled, Atl_effort_scaled, Mz_effort_scaled, Ewe_effort_scaled) %>% 
+#   gather(key = "Type", value = "Effort", -Year)
+# 
+# # Plot final data again
+# effort_plot<-ggplot(combined_effort, aes(x = Year, y = Effort, group = Type, color = Type))+
+#   geom_line(size = 0.7)+
+#   geom_vline(xintercept = 2005, linetype ="dashed")+
+#   theme_bw()
+# effort_plot
+
+# # Save plot
+# pdf("Effort_LME42_scaled.pdf", width = 8, height=5)
+# effort_plot
+# dev.off()
+
+```
+
+#### Key points for discussion
+
+1. Aggregated LME-level effort trends do not match across global and regional dataset:
+
+  * Difficulties in comparing effort across datasets due to different units and little years overlap. much shorter time series for regional forcing data.      
+  * Differences across models can be due to different 1) scales and 1) fleets/fisheries considered -> Exploration of effort by fleet might clarify some of this.  
+
+2. Atlantis and EwE show opposite trends between 1995 and 2005 -> Exploration of effort by fleet might clarify some of this.   
+3. The global dataset seems to lag behind Atlantis in its increasing trend (1950-1990), and to lag behing EwE in its decreasing trend (1990-2017). Differences could be due to the presence of other fishing countries in the global dataset -> Check whether Australia is the only fishing country for LME 42 once the updated global data is available.     
+   
+**NOTE**: if trends were matching -> **anomaly approach** could be used to force regional models with LME-level effort data from the global dataset. This would still require matching fleets across global and regional datasets - NEXT STEP.       
+   
+## Explore fishing effort by fleet 
+
+*Work in progress* - an updated version of the global effort data with functional groups + gears will be available soon. 
+
+Flees within the global effort dataset can be defined as 'functional (target) group', 'gear' once the info is available, or a combination of 'functional group' and gear
+
+```{r fleet, fig.width=10, fig.height=7}
+
+# Manually create a file that stores and relates all fleets across the datasets
+common_name<-data.frame(Fleet_global = unique(effort_global$Fleet), Fleet_atl = NA, Fleet_mz = NA, Fleet_ewe = NA)
+common_name<-common_name[order(common_name$Fleet_global),]
+rownames(common_name)<-seq(1, nrow(common_name))
+
+# Match Atlantis fleets 
+# WARNING - need to discuss with Beth
+common_name[14, 2]<-"Abalone.divers" # 
+common_name[9,  2]<-"Bottom.trawl.for.benthopelagics"
+common_name[10, 2]<-"Bottom.trawl.for.cephalopods"
+common_name[13, 2]<-"Bottom.trawl.for.deepwater.demersal.fish"
+common_name[15, 2]<-"Bottom.trawl.for.flathead"
+common_name[2,  2]<-"Bottom.trawl.for.orange.roughy"
+common_name[16, 2]<-"Crab.trawl" #
+common_name[6,  2]<-"Danish.seine"
+common_name[24, 2]<-"Demersal.finfish.gillnet"
+common_name[11, 2]<-"Demersal.line.for.deepwater.demersal.fish"
+common_name[3,  2]<-"Demersal.line.for.deepwater.piscivorous.fish" #
+common_name[21, 2]<-"Demersal.line.for.deepwater.shark"
+common_name[12, 2]<-"Demersal.line.for.shallow.water.finfish"
+common_name[10, 2]<-"Jig.for.cephalopods" # REPLACED 
+common_name[16, 2]<-"Lobster.pots" # REPLACED
+common_name[10, 2]<-"Midwater.trawl.for.cephalopods" # REPLACED
+common_name[8,  2]<-"Midwater.trawl.for.finfish" #
+common_name[7,  2]<-"Midwater.trawl.for.small.pelagics" #
+common_name[18, 2]<-"Pelagic.longline.for.large.pelagics"
+common_name[26, 2]<-"Prawn.trawl"
+common_name[5,  2]<-"Purse.seine.for.piscivorous.fish" # 
+common_name[4,  2]<-"Purse.seine.for.small.pelagics" #
+common_name[22, 2]<-"Scallop.dredge" # 
+common_name[25, 2]<-"Shark.gillnet"
+common_name[23, 2]<-"Traps.for.finfish" # 
+
+# Match Mizer
+common_name[25, 3]<-"GHAT - Southern Shark Gillnet"
+common_name[6,  3]<-"South East Trawl Fishery - Danish Seine"
+common_name[13, 3]<-"South East Trawl Fishery - Otter trawl deepSlope"
+common_name[15, 3]<-"South East Trawl Fishery - Otter trawl shelf"
+common_name[9,  3]<-"South East Trawl Fishery - Otter trawl upperSlope"
+
+# Match EwE
+# WARNING - need to discuss with Cathy
+common_name[6,  4]<-"D.SeineEffort"
+common_name[12, 4]<-"Line.effort"
+common_name[22, 4]<-"NetNT.Effort" #
+common_name[15, 4]<-"NSW.Effort"
+common_name[14, 4]<-"ScallopVEffort"
+common_name[16, 4]<-"TrapEffort"
+common_name[9,  4]<-"Trawl.Effort"
+common_name[18, 4]<-"TunaEffort"
+common_name[21, 4]<-"VicEffort"
+
+common_name$gearID<-common_name$Fleet_global
+
+library("knitr")
+knitr::kable(common_name[,1:4], format = "html")
+
+# data for trends in effort by fleet
+# 0 to 1 scaling function 
+range01 <- function(x){(x-min(x, na.rm = TRUE))/(max(x, na.rm = TRUE)-min(x, na.rm = TRUE))}
+
+# rearrange global effort data 
+# WARNING - whether I ungroup() or not the effort_global df above makes a huge difference! 
+
+effort_global2<-effort_global %>%
+  select(Year, Fleet, Global_effort_DayKW) %>%
+  mutate(Global_effort_scaled = range01(Global_effort_DayKW),
+         data = "global") %>% # WARNING - check the scaling function
+  rename(Fleet_global = Fleet) %>%
+  full_join(common_name[,c(1,5)]) %>%
+  filter(!is.na(Fleet_global))
+
+ggplot(effort_global2, aes(x = Year, y = Global_effort_scaled, group = Fleet_global))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~Fleet_global)
+
+# rearrange Atl effort data
+effort_atlantis2<-effort_atlantis %>%
+  mutate(Atl_effort_scaled = range01(Atl_effort_day),
+         data = "Atlantis") %>%
+  rename(Fleet_atl = Fleet) %>%
+  full_join(common_name[,c(2,5)])%>%
+  filter(!is.na(Fleet_atl))
+
+# rearrange Mz effort data
+effort_mizer2<-effort_mizer %>%
+  mutate(Mz_effort_scaled = range01(Mz_effort_opn),
+         data = "Mizer") %>%
+  rename(Fleet_mz = Fleet) %>%
+  full_join(common_name[,c(3,5)]) %>%
+  filter(!is.na(Fleet_mz))
+
+# rearrange EwE effort data
+effort_ewe2<-effort_ewe %>%
+  mutate(Ewe_effort_scaled = range01(Ewe_effort_relative),
+         data = "EwE")  %>%
+  rename(Fleet_ewe = Fleet) %>%
+  full_join(common_name[,c(4,5)])%>%
+  filter(!is.na(Fleet_ewe))
+
+# combine data
+effort_all<-effort_global2 %>%
+  full_join(effort_atlantis2) %>%
+  full_join(effort_mizer2) %>%
+  full_join(effort_ewe2)
+
+effort_all<-effort_all %>%
+  select(-c(Fleet_global,Global_effort_DayKW,Fleet_atl,Atl_effort_day,Fleet_mz,Mz_effort_opn,Fleet_ewe,Ewe_effort_relative)) %>%
+  gather("key", "value", -c(Year, data, gearID)) %>% 
+  ungroup()
+
+ggplot(effort_all, aes(x = Year, y = value, color = data))+
+  geom_point(size=0.5)+
+  geom_line()+
+  theme_bw()+
+  facet_wrap(~gearID)
+
+## prepare data for sankey plot
+# Sum or mean effort across years and calculate proportional effort by fleet
+effort_global_mean <- effort_global2 %>%
+  group_by(Fleet_global, gearID) %>%
+  summarise(Global_effort_DayKW = mean(Global_effort_DayKW, na.rm = TRUE)) %>% 
+  ungroup() %>% # WARNING - this is needed otherwise the df is grouped by Fleet_global and the below operation gives wrong values
+  mutate(Global_effort_prop = Global_effort_DayKW/sum(Global_effort_DayKW)) %>% 
+  # rename(Fleet_global = Fleet) %>%
+  select(-Global_effort_DayKW) # %>%
+  # full_join(common_name[,c(1,5)]) %>%
+  # filter(!is.na(Fleet_global))
+
+effort_atlantis_mean<-effort_atlantis2 %>%
+  group_by(Fleet_atl, gearID) %>%
+  summarise(Atl_effort_day = mean(Atl_effort_day, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(Atl_effort_prop = Atl_effort_day/sum(Atl_effort_day)) %>%
+  # rename(Fleet_atl = Fleet) %>%
+  select(-Atl_effort_day) # %>%
+  # full_join(common_name[,c(2,5)])%>%
+  # filter(!is.na(Fleet_atl))
+
+effort_mizer_mean<-effort_mizer2 %>%
+  group_by(Fleet_mz, gearID) %>%
+  summarise(Mz_effort_opn = mean(Mz_effort_opn, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(Mz_effort_prop = Mz_effort_opn/sum(Mz_effort_opn)) %>%
+  # rename(Fleet_mz = Fleet) %>%
+  select(-Mz_effort_opn) # %>%
+  # full_join(common_name[,c(3,5)]) %>%
+  # filter(!is.na(Fleet_mz))
+
+effort_ewe_mean<-effort_ewe2 %>%
+  group_by(Fleet_ewe, gearID) %>%
+  summarise(Ewe_effort_relative = mean(Ewe_effort_relative, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(Ewe_effort_prop = Ewe_effort_relative/sum(Ewe_effort_relative))  %>%
+  # rename(Fleet_ewe = Fleet) %>%
+  select(-Ewe_effort_relative) #%>%
+  # full_join(common_name[,c(4,5)])%>%
+  # filter(!is.na(Fleet_ewe))
+
+# combine data
+effort_all_mean<-effort_global_mean %>%
+  full_join(effort_atlantis_mean) %>%
+  full_join(effort_mizer_mean) %>%
+  full_join(effort_ewe_mean)
+
+# View(effort_all_mean)
+
+# define links global - atlantis
+links1<-effort_all_mean %>%
+  select(Fleet_global, Fleet_atl, Atl_effort_prop) %>% # WARNING - this does not take into consideration how effort is spread across the global dataset... So not sure how useful this is
+  filter(!is.na(Atl_effort_prop))
+
+colnames(links1)<-c("source", "target", "value")
+
+# From these flows we need to create a node data frame: it lists every entities involved in the flow
+nodes <- data.frame(
+  name=c(as.character(links1$source),
+  as.character(links1$target)) %>% unique()
+)
+
+# With networkD3, connection must be provided using id, not using real name like in the links dataframe.. So we need to reformat it.
+links1$IDsource <- match(links1$source, nodes$name)-1
+links1$IDtarget <- match(links1$target, nodes$name)-1
+
+# Make the Network
+p <- sankeyNetwork(Links = links1, Nodes = nodes,
+              Source = "IDsource", Target = "IDtarget",
+              Value = "value", NodeID = "name",
+              sinksRight=FALSE)
+p
+
+# define links Atlantis - EwE
+links2<-effort_all_mean %>%
+  select(Fleet_atl,Fleet_ewe ,Ewe_effort_prop) %>%
+  filter(!is.na(Ewe_effort_prop))
+
+colnames(links2)<-c("source", "target", "value")
+
+# combine links global - atlantis - mizer
+links_all<-rbind(links1[,c(1,2,3)], links2) # delete ID columns calculated above
+
+nodes <- data.frame(
+  name=c(as.character(links_all$source),
+  as.character(links_all$target)) %>% unique()
+)
+
+# With networkD3, connection must be provided using id, not using real name like in the links dataframe.. So we need to reformat it.
+links_all$IDsource <- match(links_all$source, nodes$name)-1
+links_all$IDtarget <- match(links_all$target, nodes$name)-1
+
+# Make the Network
+p <- sankeyNetwork(Links = links_all, Nodes = nodes,
+              Source = "IDsource", Target = "IDtarget",
+              Value = "value", NodeID = "name",
+              sinksRight=FALSE)
+p
+
+# define links Atl - Mizer
+# WARNING - atl - mz works because there are no NA between the two (each mz fleet is inked to an Atl fleet). But EwE - mz do not work at the moment for the opposite reason. Anyways if there are NA between 2 models, the links are messed up... needs more thoughts 
+
+# View(effort_all_mean)
+
+links3<-effort_all_mean %>%
+  select(Fleet_atl,Fleet_mz ,Mz_effort_prop) %>%
+  filter(!is.na(Mz_effort_prop))
+
+colnames(links3)<-c("source", "target", "value")
+
+# combine links global - atlantis - mizer
+links_all<-rbind(links1[,c(1,2,3)], links2, links3) # delete ID columns calcualted above
+
+nodes <- data.frame(
+  name=c(as.character(links_all$source),
+  as.character(links_all$target)) %>% unique()
+)
+
+# With networkD3, connection must be provided using id, not using real name like in the links dataframe.. So we need to reformat it.
+links_all$IDsource <- match(links_all$source, nodes$name)-1
+links_all$IDtarget <- match(links_all$target, nodes$name)-1
+
+# Make the Network
+p <- sankeyNetwork(Links = links_all, Nodes = nodes,
+              Source = "IDsource", Target = "IDtarget",
+              Value = "value", NodeID = "name",
+              sinksRight=FALSE)
+p
+
+```
