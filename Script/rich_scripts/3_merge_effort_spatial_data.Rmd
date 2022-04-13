@@ -1,19 +1,30 @@
 ---
 ---
+#Install dependencies
+```{r}
+install.packages(C("purrr", "fanzi", "utf8", "R6", "tibble", "pkgconfig", "dplyr", "dtplyr", "data.table", "geoR"))
+
+```
 
 Libraries
 ```{r}
 
-library(tidyverse)
+library(dtplyr)
+library(dplyr)
 library(data.table)
 library(here)
 library(vroom)
 library(parallel)
+library(tictoc)
+library(geoR)
 
 select <- dplyr::select
 
 yannick_dir <- "/rd/gem/private/users/yannickr"
 
+original_effort_dir <- "/rd/gem/private/users/yannickr/effort_mapped_bycountry"
+
+aggregated_files_dir <- "/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated/"
 
 ```
 
@@ -33,13 +44,24 @@ Explore files and join the main data
   select(Lat, Lon, A_Code, Admin_Country) %>% 
    rename(eez_country_code = A_Code, 
           eez_country_name = Admin_Country) %>% 
-   distinct() %>% 
-    as.data.table())
+   distinct())
 
-(LMEs <- fread(file.path(yannick_dir, "LMESeq.csv"))[,c("Lon", "Lat", "LME")])
+united_coords <- EEZ_adj %>% unite("coords", c("Lon", "Lat"), sep = " ")
 
+EEZ_adj <- EEZ_adj[-which(duplicated(united_coords[,"coords"])==TRUE),] %>% as.data.table() # remove duplicated EEZ records
+EEZ_adj <- lazy_dt(EEZ_adj)
+
+
+#LME data
+(LMEs <- fread(file.path(yannick_dir, "LMESeq.csv")))
+LMEs <- lazy_dt(LMEs)
+
+
+#FAO regions data
 (FAO_regions <- readRDS(file.path(yannick_dir, "Cells_LatLon_FAO_regions.rds")) %>% 
-    rename(Lon=x, Lat = y) %>% as.data.table()) 
+    rename(Lon=x, Lat = y) %>% mutate(fao_area= as.double(fao_area)) %>% as.data.table())
+
+FAO_regions <- lazy_dt(FAO_regions)
 
 
 # Looking at the CNumber - this appears the be the iso3n code for the country. This is often the name the same as the admin country but is different when the land masses are territories of other countries
@@ -47,15 +69,16 @@ Explore files and join the main data
 
 #The data have different rows. Want to make sure they line up
 nrow(EEZ) #191480
-nrow(EEZ_new) #167373
-nrow(LMEs) #259200
-nrow(FAO_regions) #173097
+nrow(EEZ_adj) #182995
+nrow(as_tibble(LMEs)) #259200
+nrow(FAO_regions) #229369
 
 
 #there are some cells in LME  that do not have EEZ data
-LME_EEZ <- full_join(LMEs, EEZ) #this 270776 - an extra 11 thousand rows
-missing_EEZ <- LME_EEZ %>% filter(is.na(Admin_Country))%>% select(Lon, Lat, LME)
-plot(rasterFromXYZ(missing_EEZ)) #looks like they could be on the land??
+LME_EEZ <- full_join(LMEs, EEZ_adj) #this 262291 - an extra (262291-259200 = 3091) rows
+missing_EEZ <- LME_EEZ %>% filter(is.na(eez_country_name))%>% select(Lon, Lat, LME)
+
+
 LME_EEZ %>% filter(Lon %in% missing_EEZ$Lon & Lat %in% missing_EEZ$Lat) # the presence of cells in missing data seems to vastly outnumber
 
 #doesn't do it with these two though - perhaps the eez grid is dodgy? Try the new EEZ xy file. That worked.
@@ -86,59 +109,71 @@ Make a function that will speedily import and merge the data files
 
 ```{r}
 
-
 join_effort_data <- function(this_file_name){
   
-  this_source_path <- paste0(original_effort_dir, this_file_name)
+  this_source_path <- file.path("/rd/gem/private/users/yannickr/effort_mapped_bycountry", this_file_name)
   
-  this_destination_path <- paste0(aggregated_files_dir, "aggregated_", this_file_name)
+  this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated/", "aggregated_", this_file_name)
   
   if(file.exists(this_destination_path)){
     
     Year <- as.numeric(str_extract(this_file_name, pattern =  "([[:digit:]])+"))
     
-    these_data <- fread(file.path(this_source_path))
+    these_data <- fread(this_source_path)
+    these_data <- lazy_dt(these_data)
     
+    #data.table approach
     #tells data.table how to join
-    setkey(these_data, Lon, Lat)
-    setkey(LMEs, Lon, Lat)
-    setkey(EEZ_adj, Lon, Lat)
-    setkey(FAO_regions, Lon, Lat)
+    # 
+    # setkey(these_data, Lon, Lat)
+    # setkey(LMEs, Lon, Lat)
+    # setkey(EEZ_adj, Lon, Lat)
+    # setkey(FAO_regions, Lon, Lat)
+    # 
+    # #make the joins of LMEs, FAO areas, and EEZs
+    # merge_1 <- LMEs[these_data, on = c("Lon", "Lat")]
+    # merge_2 <- FAO_regions[merge_1, on = c("Lon", "Lat")]
+    # merge_3 <- EEZ_adj[merge_2, on = c("Lon", "Lat")] #merge 3 has retained the same number of rows
+    # #group by all variables and sum the different effort forms, adding year at the end
+    # 
+    # this_aggregated_data <- 
+    #   cbind(
+    #     nom_active_gr <- merge_3[, .(NomActive= sum(NomActive, na.rm = TRUE)),
+    #                              by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"NomActive"],
+    #     eff_active_gr <-  merge_3[, .(EffActive= sum(EffActive, na.rm = TRUE)), 
+    #                               by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"EffActive"],
+    #     nv_gr <- merge_3[, .(NV= sum(NV, na.rm = TRUE)),
+    #                      by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"NV"],
+    #     p_gr <- merge_3[, .(P= sum(P, na.rm = TRUE)), 
+    #                     by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"P"],
+    #     gt_group <- merge_3[, .(GT= sum(GT, na.rm = TRUE)), 
+    #                         by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"GT"]
+    #   )[, `:=`(Year = Year)]
     
-    #make the joins of LMEs, FAO areas, and EEZs
-    merge_1 <- LMEs[these_data, on = c("Lon", "Lat")]
-    merge_2 <- FAO_regions[merge_1, on = c("Lon", "Lat")]
-    merge_3 <- EEZ_adj[merge_2, on = c("Lon", "Lat")] #merge 3 has retained the same number of rows
+    #dtplyr approach
+    these_aggregated_data <-
+      these_data %>%
+      left_join(LMEs, by=c("Lat", "Lon")) %>%
+      left_join(EEZ_adj, by=c("Lat", "Lon")) %>%
+      left_join(FAO_regions, by=c("Lat", "Lon")) %>%
+      group_by(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector) %>%
+      summarise(NomActive = sum(NomActive, na.rm = TRUE),
+                EffActive = sum(EffActive, na.rm = TRUE),
+                NV= sum(NV, na.rm = TRUE),
+                P= sum(P, na.rm = TRUE),
+                GT= sum(GT, na.rm = TRUE)) %>%
+      mutate(Year = Year) %>% as.data.table()
     
-    #group by all variables and sum the different effort forms, adding year at the end
-    this_aggregated_data <- 
-      cbind(
-    nom_active_gr <- merge_3[, .(NomActive= sum(NomActive, na.rm = TRUE)), 
-                             by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )],
-   eff_active_gr <-  merge_3[, .(EffActive= sum(EffActive, na.rm = TRUE)), 
-                             by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"EffActive"],
-   nv_gr <- merge_3[, .(NV= sum(NV, na.rm = TRUE)), 
-                    by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"NV"],
-   p_gr <- merge_3[, .(P= sum(P, na.rm = TRUE)), 
-                   by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"P"],
-   gt_group <- merge_3[, .(GT= sum(GT, na.rm = TRUE)), 
-                       by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"GT"]
-    )[, `:=`(Year = Year)]
-    
-fwrite(x = this_aggregated_data, file = file.path(this_destination_path))
-    
-    
- }
+    fwrite(x = these_aggregated_data, file = file.path(this_destination_path))
+  }
   
 }
 
 
-
 ```
 
-Run the code on all 30,00 files and write them to folder
+Run the code on all 30,000 files and write them to folder
 ```{r}
-
 #compressed_effort_files <- list.files(file.path(compressed_effort_dir), full.names = TRUE)
 original_effort_files <- list.files(file.path(original_effort_dir), pattern = ".csv")
 
@@ -146,7 +181,7 @@ chunk_size <- 500 #chunk size for processing
 effort_list_split <- split(original_effort_files, ceiling(seq_along(original_effort_files)/chunk_size))
 length(effort_list_split) #60 chunks
 
-
+tic()
 for(i in 1:length(effort_list_split)){
   
   file_chunk <- effort_list_split[[i]]
@@ -156,17 +191,19 @@ for(i in 1:length(effort_list_split)){
   mclapply(X = file_chunk, FUN = join_effort_data, mc.cores = 40)
   
 }
+toc()
+4679.399/3600 #1.3 hours to run
+```
 
 
+Check the files
+
+```{r}
 #check the files
-
 newly_written_files <- list.files(file.path(yannick_dir, "effort_mapped_by_country_aggregated"), full.names = TRUE)
 
 #pick one randomly 
 map(newly_written_files[[8]], fread)
-
-
-
 ```
 
 Combine all listed files to one file

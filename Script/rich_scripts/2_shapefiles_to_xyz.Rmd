@@ -12,6 +12,8 @@ select <- dplyr::select
 
 yannick_dir <- "/rd/gem/private/users/yannickr"
 fao_regions_dir <- "/rd/gem/private/users/yannickr/FAO_AREAS_CWP_NOCOASTLINE"
+eez_dir <- "/rd/gem/private/users/yannickr/World_EEZ_v11_20191118"
+
 ```
 
 Import fao regions shapefile and create numeric variable for fao areas from the original character
@@ -86,5 +88,28 @@ saveRDS(object = xyz_file, file =  file.path(yannick_dir, "Cells_LatLon_FAO_regi
 
 ```
 
+Import EEZ shapefile
+```{r}
 
+eez_shp <- st_read(file.path(eez_dir, "eez_boundaries_v11.shp")) %>% 
+  mutate(iso3n = countrycode(sourcevar = eez_shp$SOVEREIGN1, origin = "country.name", destination = "iso3n", warn = TRUE))
+
+class(eez_shp$iso3n)
+
+extent(eez_shp)
+
+```
+
+Convert shp to EEZ raster
+
+```{r}
+
+base_raster <- raster(res = 0.5)
+extent(base_raster) <- extent(eez_shp)
+
+eez_raster <- raster::rasterize(x = eez_shp  , y = base_raster, field = eez_shp$iso3n , fun = "last")
+
+
+
+```
 
