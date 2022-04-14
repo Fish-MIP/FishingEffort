@@ -1,8 +1,43 @@
 ---
 ---
-#Install dependencies
+Install libraries in dependency order
 ```{r}
-install.packages(C("purrr", "fanzi", "utf8", "R6", "tibble", "pkgconfig", "dplyr", "dtplyr", "data.table", "geoR"))
+install.packages("highr")
+install.packages("stringi")
+install.packages("stringr")
+install.packages("knitr")
+install.packages("purrr")
+install.packages("fansi")
+install.packages("utf8")
+install.packages("R6")
+install.packages("pkgconfig")
+install.packages("tibble")
+install.packages("dplyr")
+install.packages("data.table")
+install.packages("sp")
+install.packages("sf")
+install.packages("splancs")
+install.packages("dtplyr")
+install.packages("geoR")
+install.packages("digest")
+install.packages("htmltools")
+install.packages("ps")
+install.packages("assertthat")
+install.packages("gtable")
+install.packages("processx")
+install.packages("prettyunits")
+install.packages("fs")
+install.packages("xml2")
+install.packages("colorspace")
+install.packages("munsell")
+install.packages("scales")
+install.packages("backports")
+install.packages("tidyverse")
+install.packages("tictoc")
+install.packages("vroom")
+
+
+
 
 ```
 
