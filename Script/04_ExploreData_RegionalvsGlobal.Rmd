@@ -48,13 +48,20 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 rm(list=ls())
 
 # load libraries 
+library("data.table")
 library("ggplot2")
 library("tidyverse")
 library("patchwork")
 library("gridExtra")
 library("dplyr")
-library("networkD3")
+# library("networkD3") # PROBLEM WITH THIS - what is it for anyway??? 
 library("tidyr")
+# install.packages("patchwork")
+# install.packages("networkD3")
+# install.packages("igraph")
+
+select<-dplyr::select
+summarise<-dplyr::summarise
 
 ```
 
@@ -68,62 +75,65 @@ library("tidyr")
 # effort<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/TotalEffortby_FGroup_LME_Sector.csv")
 # effort<-effort[2:nrow(effort), 2:ncol(effort)]
 
-effort<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/DataYannick/TotalAggregatedFGroupLME.csv")
-effort<-effort[2:nrow(effort), 2:ncol(effort)]
+# NEW 
+# effort<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/DataYannick/TotalAggregatedFGroupLME.csv")
+# effort<-effort[2:nrow(effort), 2:ncol(effort)]
+# head(effort)
+
+# New aggregation including gear 
+yannick_dir <- "/rd/gem/private/users/yannickr"
+effort<-read_csv(file.path(yannick_dir, "effort_histsoc_1961_2010.csv")) # OR all_effort_aggregated.csv as the first is still to be checked 
+# effort<-effort[2:nrow(effort), 2:ncol(effort)]
 head(effort)
 
-# explore by LME - some LMEs 
-keep <- seq(30,50)
+# WARNING  - try fread from data.table instead of read_csv, then lazy_dt(effort) from dtplyr, then can apply dplyr sintax to data.table object which is much faster...  
 
-effort_mapped<-effort %>% 
-  filter(Sector == "I", LME %in% keep) %>% 
-  group_by(Year, LME) %>% 
-  summarise(effort = sum(NomActive, na.rm = TRUE)) %>% 
-  ungroup()
-
-ggplot(effort_mapped, aes(x = Year, y = effort))+
-  geom_line()+
-  facet_wrap(~LME, scale = "free")
-
-# load effort unmapped
-# is teh pick for LME 42 present in the data before the mapping? kind of - but different trend with clear smoothing after the pick. ALos lots of smoothing pre mapping with all countries. 
-effort_unmapped<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/Final_DataStudyFAO_V5.csv")
+# compare mapped effort with unmapped - what are the common columns in effort mapped and effort unmapped?
+# load effort un-mapped
+effort_unmapped<-read_csv(file.path(yannick_dir, "Final_DataStudyFAO_AllGears_V5.csv")) # WARNING - was originally this Final_DataStudyFAO_V5.csv in local
 head(effort_unmapped)
 
-# explore by country - some countries
-keep<-unique(effort_unmapped$Country)[1:15]
+# country, sector, and gear are the common columns, where country is the fishing country and not the eez
+# View(unique(effort_unmapped[,c(3,8)]))
+
+effort_mapped<-effort %>% 
+  filter(SAUP == 36)  %>% # SAUP 36 = Au fishing country
+  group_by(Year, Gear) %>% 
+  summarise(effort = sum(NomActive, na.rm = TRUE)) %>% 
+  ungroup() %>%
+  mutate(origin = "mapped")
+
+# # load effort unmapped
+# # is the pick for LME 42 present in the data before the mapping? kind of - but different trend with clear smoothing after the pick. ALos lots of smoothing pre mapping with all countries. 
+# effort_unmapped<-read_csv(file.path(yannick_dir, "Final_DataStudyFAO_AllGears_V5.csv")) # WARNING - was originally this Final_DataStudyFAO_V5.csv in local
+# head(effort_unmapped)
 
 effort_unmappedA<-effort_unmapped %>% 
-  filter(Country %in% keep) %>% 
-  group_by(Year, Country) %>% 
-  summarise(effort = sum(NV, na.rm = TRUE)) %>% # look at number of vessels (NV) first - can also be NomEffort
-  ungroup()
+  filter(SAUP == 36) %>% 
+  group_by(Year, Gear) %>% 
+  summarise(effort = sum(NomEffortActive, na.rm = TRUE)) %>% # look at number of vessels (NV) first - can also be NomEffort
+  ungroup() %>% 
+  mutate(origin = "unmapped")
 
-ggplot(effort_unmappedA, aes(x = Year, y = effort))+
+all<-effort_unmappedA %>% 
+  full_join(effort_mapped)
+
+# WARNING - these are the same as here fishing country and gear are in common but then effort gets spread to different cells .... and it goes into different LMEs? 
+ggplot(all, aes(x = Year, y = effort, color = origin))+
   geom_line()+
-  facet_wrap(~Country, scale = "free")
+  theme_bw()+
+  facet_wrap(~Gear)
 
-# zoom in Au 
-effort_unmapped2<-effort_unmapped %>% 
+# explore by country only - smoothing 
+effort_unmapped2B<-effort_unmapped %>% 
   filter(Country == "Australia") %>% 
   group_by(Year) %>% 
   summarise(effort = sum(NV, na.rm = TRUE)) %>% 
   ungroup()
 
-ggplot(effort_unmapped2, aes(x = Year, y = effort))+
-  geom_line()
-
-# explore by coutry and by gear 
-effort_unmapped2B<-effort_unmapped %>% 
-  filter(Country == "Australia") %>% 
-  group_by(Year, Gear) %>% 
-  summarise(effort = sum(NV, na.rm = TRUE)) %>% 
-  ungroup()
-
 # Smoothing goes away as NV are allocated to the different gears based on a value that changes by year and given data on e.g. power 
 ggplot(effort_unmapped2B, aes(x = Year, y = effort))+
-  geom_line()+
-  facet_wrap(~Gear, scale = "free")
+  geom_line()
 
 # most influential gears in determining the smooth pattern: 
 # "Gillnets","Lines_Longlines","Seine_Danish_and_Other","Lines_Handlines_and_poles", "Others_Support"                  
@@ -141,6 +151,23 @@ ggplot(effort_unmapped3, aes(x = Year, y = effort))+
 
 Explanation of key columns (For more info on the global effort file check Rousseau et al. in prep):  
 
+*New*
+
+* eez_country_name
+* fao_area 
+* LME
+* SAUP
+* Gear
+* Sector 
+* NomActive = effort in days at sea X kW (not creep-corrected)    
+* EffActive = effort in days at sea X kW (creep-corrected)  
+* NV
+* P 
+* GT 
+* Year 
+
+*Old* 
+
 * FGroup = functional group   
 * NomActive = effort in days at sea X kW (not creep-corrected)    
 * EffActive = effort in days at sea X kW (creep-corrected)  
@@ -154,55 +181,83 @@ NOTE: an updated version of this dataset will be provided. THis version will als
 
 ```{r global2, fig.width=10, fig.height=7}
 
-# Load LME and FAO codes
-lme<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Fishing data/LME_FAO_coding.csv")
+# OLD - the new version already include LME etc... 
 
-# Calculate effort by LME, Year, Sector and Fleet
-effort_global<-effort %>% 
-  mutate(Fleet = FGroup) %>% # note - fleet should be based on fishing gear and target group  
-  group_by(LME, Year, Sector, Fleet) %>% 
-  summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(Year = as.numeric(Year)) 
-
-# Add info from lme file - e.g. 'FAO' code or 'zone'
-lme<-lme %>% 
-  `colnames<-`(c("zone", "code","LME", "area")) %>% # rename columns as per effort data
-  filter(code == "LME") %>% # select only LME and do not consider FAO (can also do the opposite)
-  dplyr::select(-code, -area)
-
-# Merge LME to effort data 
-effort_global<-effort_global %>% 
-  left_join(lme)
+# # Load LME and FAO codes
+# lme<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Fishing data/LME_FAO_coding.csv")
+# 
+# # Calculate effort by LME, Year, Sector and Fleet
+# effort_global<-effort %>% 
+#   mutate(Fleet = FGroup) %>% # note - fleet should be based on fishing gear and target group  
+#   group_by(LME, Year, Sector, Fleet) %>% 
+#   summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>%
+#   ungroup() %>%
+#   mutate(Year = as.numeric(Year)) 
+# 
+# # Add info from lme file - e.g. 'FAO' code or 'zone'
+# lme<-lme %>% 
+#   `colnames<-`(c("zone", "code","LME", "area")) %>% # rename columns as per effort data
+#   filter(code == "LME") %>% # select only LME and do not consider FAO (can also do the opposite)
+#   dplyr::select(-code, -area)
+# 
+# # Merge LME to effort data 
+# effort_global<-effort_global %>% 
+#   left_join(lme)
 
 # Split effort by LME 
-effort_list<-split(effort_global, effort_global$LME)
+effort_list<-split(effort, effort$LME)
 
 # Select South East Australia = LME 42
-effort_global<-effort_list$'42'
+effort_42<-effort_list$'42' %>% 
+  droplevels()
 
-# Select the fishing sector you want to focus on, unless you are considering all sectors
-ggplot(effort_global, aes(x = Year, y = NomActive, group = Sector, color = Sector))+
+# are there fishing countries besides AU fishing in this LME that could explain the pick in 1990 not seen in regional effort data? see below 
+unique(effort_42$SAUP)
+# list the countries/SAUP codes: 
+saup<-read_csv(file.path(yannick_dir, "SAUPcode_to_Country.csv")) 
+head(saup)
+# View(saup)
+
+length(unique(effort_42$SAUP))
+
+trial1<-effort_42 %>% 
+  filter(SAUP %in% c(36, 157, 360, 764, 554)) %>% 
+  group_by(Year, SAUP) %>% 
+  summarise(effort = sum(NomActive, na.rm = TRUE)) %>% 
+  ungroup()
+
+ggplot(trial1, aes(x = Year, y = effort))+
+  geom_line()+
+  theme_bw()+
+  facet_wrap(~SAUP)
+
+# WARNING - lots of countries fishing in this LME but AU remains the one responsible for the pick in 1990
+
+# are there fishing gears that explain this pick? 
+trial2<-effort_42 %>% 
+  group_by(Year, Sector, Gear) %>% 
+  summarise(effort = sum(NomActive, na.rm = TRUE))
+
+ggplot(trial2, aes(x = Year, y = effort, group = Sector, color = Sector))+
   geom_point(size=0.5)+
   geom_line()+
   theme_bw()+
-  facet_wrap(~Fleet)
-effort_global<-effort_global %>% filter(Sector == "I")
+  facet_wrap(~Gear)
 
-# WARNING - outliers?  
-# effort_global<-effort_global %>% filter(NomActive < 3e+07)
+# WARNING - yes midwater trawl explains the pick! 
 
-# Change columns names - more informative 
-colnames(effort_global)<-c("LME","Year","Sector","Fleet" ,"Global_effort_DayKW", "Zone")
+# WARNING - could consider only industrial for LME 42 as modelers focus on industrial - should consider only Au and NZ as fishing countries?  
 
-# Aggregate effort by year 
-effort_global_aggregated<-effort_global %>% 
-  group_by(Year) %>% 
-  summarise(Global_effort_DayKW = sum(Global_effort_DayKW, na.rm = TRUE))
+effort_42<-effort_42 %>% filter(Sector == "Industrial")
 
-ggplot(effort_global_aggregated, aes(x = Year, y = Global_effort_DayKW))+
-  geom_line()+
-  theme_bw()
+# # Aggregate effort by year 
+# effort_global_aggregated<-effort_global %>% 
+#   group_by(Year) %>% 
+#   summarise(Global_effort_DayKW = sum(Global_effort_DayKW, na.rm = TRUE))
+# 
+# ggplot(effort_global_aggregated, aes(x = Year, y = Global_effort_DayKW))+
+#   geom_line()+
+#   theme_bw()
 
 ```
 
