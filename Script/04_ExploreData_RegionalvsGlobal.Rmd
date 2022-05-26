@@ -60,6 +60,13 @@ library("tidyr")
 # install.packages("networkD3")
 # install.packages("igraph")
 
+# # for stat analysis # WARNING UNABLE TO INSTALL PACKAGES ON R 
+# install.packages("MuMIn")
+# install.packages("RColorBrewer")
+# install.packages("GGally")
+library("MuMIn")
+library("GGally")
+
 select<-dplyr::select
 summarise<-dplyr::summarise
 
@@ -247,17 +254,29 @@ ggplot(trial2, aes(x = Year, y = effort, group = Sector, color = Sector))+
 # WARNING - yes midwater trawl explains the pick! 
 
 # WARNING - could consider only industrial for LME 42 as modelers focus on industrial - should consider only Au and NZ as fishing countries?  
+# effort_42<-effort_42 %>% filter(Sector == "Industrial")
 
-effort_42<-effort_42 %>% filter(Sector == "Industrial")
+# to compare with regional effort data
+# WARNING - need to define fleets according to functional group too so keep FGroup
+# WARNING - most of models are in D*Kw - can I do Global_effort_DayKW/P
+effort_global<-effort_42 %>% 
+  group_by(Gear, FGroup, Year) %>%
+  summarise(Global_effort_DayKW = sum(NomActive, na.rm = TRUE),
+            P = sum(P, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  mutate(Global_effort_Day = Global_effort_DayKW/P) %>% 
+  select(-Global_effort_Day, -P) %>% # WARNING - not sure about the above so reverted back to DayKW
+  `colnames<-`(c("Fleet", "FGroup", "Year","Global_effort_DayKW"))
 
-# # Aggregate effort by year 
-# effort_global_aggregated<-effort_global %>% 
-#   group_by(Year) %>% 
-#   summarise(Global_effort_DayKW = sum(Global_effort_DayKW, na.rm = TRUE))
-# 
-# ggplot(effort_global_aggregated, aes(x = Year, y = Global_effort_DayKW))+
-#   geom_line()+
-#   theme_bw()
+# Aggregate effort by year
+effort_global_aggregated<-effort_global %>%
+  group_by(Year) %>%
+  summarise(Global_effort_DayKW = sum(Global_effort_DayKW, na.rm = TRUE)) %>% 
+  ungroup()
+
+ggplot(effort_global_aggregated, aes(x = Year, y = Global_effort_DayKW))+
+  geom_line()+
+  theme_bw()
 
 ```
 
@@ -268,7 +287,9 @@ effort_42<-effort_42 %>% filter(Sector == "Industrial")
 ```{r Atlantis, fig.width=10, fig.height=7}
 
 # Two datasets available - see Beth's email "Effort and catch data from south east Australian models" 
-effort_atlantis<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/Atlantis/1910-2003 SESSF hist info_effort.csv")
+models_dir <- "/rd/gem/private/users/yannickr/regional_models_LME42_effort"
+effort_atlantis<-read.csv(file.path(models_dir, "1910-2003 SESSF hist info_effort.csv")) 
+# WARNING - when using read_csv the dots on the column names disappear - just something to consider when using these 2 functions
 
 # Calculate effort by fleet and year 
 effort_atlantis<-effort_atlantis %>% 
@@ -291,7 +312,7 @@ effort_atlantis<-filter(effort_atlantis, Effort != 6.240000e+11)
 # WARNING - are we double accounting for some of the effort - e.g. are Bottom.trawl.for.deepwater.demersal.fish;  Bottom.trawl.for.flathead; Bottom.trawl.for.orange.roughy somehow overlapping? discussed with Beth: not overlapping
 
 # WARNING - purse.seine for large predator drives patters. Discussed with Beth: filter out
-effort_atlantis<-effort_atlantis %>% filter(Type != "Purse.seine.for.large.pelagics")
+# effort_atlantis<-effort_atlantis %>% filter(Type != "Purse.seine.for.large.pelagics")
 
 # Change columns names - more informative
 colnames(effort_atlantis)<-c("Year", "Fleet", "Atl_effort_day")
@@ -314,7 +335,7 @@ effort_atlantis_aggregated<- effort_atlantis %>%
 
 ```{r Mizer, fig.width=6, fig.height=4}
 
-load("/Users/camillan/R-projects/mixed_fisheries_tradeoff/data/Mixed_fisheries_tradeoff.RData")
+load(file.path(models_dir,"Mixed_fisheries_tradeoff.RData"))
 effort_mizer = datValidationEffort
 
 # WARNING - discuss with modeller
@@ -342,23 +363,33 @@ effort_mizer_aggregated <- effort_mizer %>%
 
 ```{r EwE, fig.width=6, fig.height=4}
 
-# See Cathy's email "effort and catch data from south east Australian models" 25/02/2022
-effort_ewe<-read.csv("/Users/camillan/Dropbox/DBPM_fishing_extension/Yannick_data/EwE/Fleet2020 1994-2100revised.csv")
-effort_ewe<-effort_ewe[-c(1,2),]
+# See Cathy's email "effort and catch data from south east Australian models" 25/02/2022 - new email with updated data in days at sea on 07/03/2022
+effort_ewe<-read.csv(file.path(models_dir,"EBS Absolute effort values for Cami.csv"))
+effort_ewe<-effort_ewe[-c(1,2),] # WARNING - what is pool code and type taht I deleted here? 
 
 # WARNING - discuss with the modeller
-# WARNING - this file includes projections - cut the data to 2020
+# NOTES from cathy: scallops I would ignore. No Rec fishery real data.
 # WARNING - squidJigs drives patters and rec fishing is not used. Discussed with Cathy and Beth: filter out 
 effort_ewe<-effort_ewe %>% 
   gather("Fleet","Effort",-Name) %>% 
   mutate(Name = as.numeric(Name)) %>% 
-  filter(Name <= 2020) %>% 
-  filter(!Fleet %in% c("SquidEffort","Rec"))
+  filter(!Fleet %in% c("Updated.Scallop")) 
+  # filter(!Fleet %in% c("SquidEffort")) # see 
+
+# need cleaner names... 
+unique(effort_ewe$Fleet)
+names<-data.frame(Fleet = unique(effort_ewe$Fleet), Fleet_new = c("Trawl", "NonTrawl", "LineVicNsw", "PrawnTrawlNsw", "Vic", "JigSquid", "PotTraps", "DanishSeine", "LineTuna"))
+
+effort_ewe<-effort_ewe %>% 
+  full_join(names) %>% 
+  select(-Fleet) %>% 
+  rename(Fleet = Fleet_new)
 
 # Change columns names - more informative
-colnames(effort_ewe)<-c("Year", "Fleet","Ewe_effort_relative")
+effort_ewe<-effort_ewe[,c(1,3,2)]
+colnames(effort_ewe)<-c("Year", "Fleet","Ewe_effort_day")
 
-ggplot(effort_ewe, aes(x = Year, y = Ewe_effort_relative))+ 
+ggplot(effort_ewe, aes(x = Year, y = Ewe_effort_day))+ 
   geom_point(size = 0.5)+
   geom_line()+
   facet_wrap(~Fleet)+
@@ -368,7 +399,8 @@ ggplot(effort_ewe, aes(x = Year, y = Ewe_effort_relative))+
 # WARNING - this is relative effort time series currently used to force the model. How do we merge these effort values? Here summed by year but data will be replaced.  
 effort_ewe_aggregated<-effort_ewe %>% 
   group_by(Year) %>% 
-  summarise(Ewe_effort_relative = sum(Ewe_effort_relative))
+  summarise(Ewe_effort_day = sum(Ewe_effort_day, na.rm = TRUE)) %>% 
+  ungroup()
 
 ```
 
@@ -381,7 +413,7 @@ combined_effort<-effort_global_aggregated %>%
   full_join(effort_atlantis_aggregated) %>% 
   full_join(effort_mizer_aggregated) %>% 
   full_join(effort_ewe_aggregated) %>% 
-  dplyr::select(Year,Global_effort_DayKW, Atl_effort_day, Mz_effort_opn, Ewe_effort_relative) %>% 
+  dplyr::select(Year,Global_effort_DayKW, Atl_effort_day, Mz_effort_opn, Ewe_effort_day) %>% 
   gather(key = "Type", value = "Effort", -Year)
 
 # Plot final data 
@@ -433,53 +465,153 @@ effort_plot
 1. Aggregated LME-level effort trends do not match across global and regional dataset:
 
   * Difficulties in comparing effort across datasets due to different units and little years overlap. much shorter time series for regional forcing data.      
-  * Differences across models can be due to different 1) scales and 1) fleets/fisheries considered -> Exploration of effort by fleet might clarify some of this.  
+  * Differences across models can be due to different 1) scales and 1) fleets/fisheries considered -> Exploration of effort by fleet might clarify some of this. The pick in 1990 in the global dataset is because of mid-water trawling - comparison by fleet is essential.
 
 2. Atlantis and EwE show opposite trends between 1995 and 2005 -> Exploration of effort by fleet might clarify some of this.   
-3. The global dataset seems to lag behind Atlantis in its increasing trend (1950-1990), and to lag behing EwE in its decreasing trend (1990-2017). Differences could be due to the presence of other fishing countries in the global dataset -> Check whether Australia is the only fishing country for LME 42 once the updated global data is available.     
+3. The global dataset seems to anticipate Atlantis in its increasing trend (1950-1990) and EwE in its decreasing trend (1990-2017). The pick in 1990 for the global dataset is due to mid-water trawling - comparison by fleet is essential.      
    
-**NOTE**: if trends were matching -> **anomaly approach** could be used to force regional models with LME-level effort data from the global dataset. This would still require matching fleets across global and regional datasets - NEXT STEP.       
+**NOTE**: if trends were matching -> **anomaly approach** could be used to force regional models with LME-level effort data from the global dataset. This would still require matching fleets across global and regional datasets - NEXT STEP. **statistical models** could be used to extract regional forcing using the relationship between regional and global effort at the fleet level. 
+
    
 ## Explore fishing effort by fleet 
-
-*Work in progress* - an updated version of the global effort data with functional groups + gears will be available soon. 
-
-Flees within the global effort dataset can be defined as 'functional (target) group', 'gear' once the info is available, or a combination of 'functional group' and gear
 
 ```{r fleet, fig.width=10, fig.height=7}
 
 # Manually create a file that stores and relates all fleets across the datasets
-common_name<-data.frame(Fleet_global = unique(effort_global$Fleet), Fleet_atl = NA, Fleet_mz = NA, Fleet_ewe = NA)
-common_name<-common_name[order(common_name$Fleet_global),]
-rownames(common_name)<-seq(1, nrow(common_name))
+common_name<-unique(effort_global[,c(1,2)])
+common_name$Fleet_global = paste(common_name$Fleet, common_name$FGroup, sep = "_")
+common_name$Fleet_atl = NA 
+common_name$Fleet_mz = NA 
+common_name$Fleet_ewe = NA
+
+common_name<-common_name[order(common_name$Fleet),]
+# rownames(common_name)<-seq(1, nrow(common_name))
+
+# print and fill in .... 
+getwd()
+write.csv(common_name, "Data/fleet_mapping.csv")
+
+# then upload and load in R the filled table fleet_mapping_filled.csv
+save.image(file = "Data/my_work_space.RData")
+
+## WARNING - unable to install this packages on Gem48 - so save in local and do the analysis there untill problem solved.... 
+
+## WARNING units do not match when converting DayKW to Day by DayKW/P
+original_effort_dir <- "/rd/gem/private/users/yannickr/effort_mapped_bycountry"
+
+trial <- read.csv(file.path(original_effort_dir, "mapped_1950_APW_100.csv"))
+head(trial)
+
+#### Stat analysis ----
+# Try with one net first to check th stat model and perhaps ask the modelers to fill in the table .... 
+
+unique(effort_global$Fleet)
+unique(effort_global$FGroup)
+effort_global_Trawl<-effort_global %>% 
+  filter(Fleet == "Trawl_Bottom", 
+         FGroup %in% c("demersal>=90cm")) # only flathead gives a flat line for global
+         # FGroup %in% c("flatfish<90cm", "demersal30-90cm", "demersal<30cm", "demersal>=90cm")) %>% # only flathead gives a flat line for global 
+  # select(-Fleet, -FGroup) %>% 
+  # group_by(Year) %>% 
+  # summarise(Effort = sum(Global_effort_DayKW, na.rm = TRUE)) %>% # WARNING - effort is in different units fro global and atlantis ... what to do?? 
+  # ungroup() %>% 
+  # mutate(origin = "Global") 
+  # rename(Effort = Global_effort_DayKW)
+
+effort_atl_Trawl<-effort_atlantis %>% 
+  filter(Fleet == "Bottom.trawl.for.flathead") %>% 
+  select(c(-Fleet))
+  # mutate(origin = "Atl") 
+  # rename(Effort = Atl_effort_day)
+
+effort_trawl<-effort_global_Trawl %>% 
+  full_join(effort_atl_Trawl)
+
+# ggplot(effort_trawl, aes(x = Year, y = Effort, group = origin, color = origin))+
+#   geom_point()+
+#   geom_line()
+
+# View(effort_trawl)
+# flathead - no relationship 
+# demersal30-90cm, demersal<30cm negative relationship - meaningless 
+# demersal>=90cm slightly increasing ... could try with this one ... 
+ggplot(effort_trawl, aes(x = Atl_effort_day, y = Global_effort_DayKW))+
+  geom_point()
+
+
+# apply stat model 
+# update.packages()
+# install.packages("MuMIn")
+# install.packages("GGally")
+# library("MuMIn")
+# library("GGally")
+
+
+options(na.action = "na.fail")
+
+fm1 <- lm(Atl_effort_day ~ Global_effort_DayKW, data = filter(effort_trawl, !is.na(Atl_effort_day)))
+dd <- dredge(fm1)
+# subset(dd, delta < 6)
+
+# Visualize the model selection table:
+# par(mar = c(3,5,6,4))
+# plot(dd, labAsExpr = TRUE)
+
+# Model average models with delta AICc < 4
+model.avg(dd, subset = delta < 4)
+
+# WARNING as above for BOATS
+#or as a 95% confidence set:
+model.avg(dd, subset = cumsum(weight) <= .95) # get averaged coefficients
+
+#'Best' model
+best<-summary(get.models(dd, 1)[[1]])
+par(mfrow = c(2,2))
+plot(get.models(dd, 1)[[1]])
+
+
+
+
+
+
+
+
+
+
+
+#### SKYP as done in csv .... 
 
 # Match Atlantis fleets 
+sort(unique(effort_atlantis$Fleet))
+unique(common_name$Fleet)
+View(common_name)
+
 # WARNING - need to discuss with Beth
-common_name[14, 2]<-"Abalone.divers" # 
-common_name[9,  2]<-"Bottom.trawl.for.benthopelagics"
-common_name[10, 2]<-"Bottom.trawl.for.cephalopods"
-common_name[13, 2]<-"Bottom.trawl.for.deepwater.demersal.fish"
-common_name[15, 2]<-"Bottom.trawl.for.flathead"
-common_name[2,  2]<-"Bottom.trawl.for.orange.roughy"
-common_name[16, 2]<-"Crab.trawl" #
-common_name[6,  2]<-"Danish.seine"
-common_name[24, 2]<-"Demersal.finfish.gillnet"
-common_name[11, 2]<-"Demersal.line.for.deepwater.demersal.fish"
-common_name[3,  2]<-"Demersal.line.for.deepwater.piscivorous.fish" #
-common_name[21, 2]<-"Demersal.line.for.deepwater.shark"
-common_name[12, 2]<-"Demersal.line.for.shallow.water.finfish"
-common_name[10, 2]<-"Jig.for.cephalopods" # REPLACED 
-common_name[16, 2]<-"Lobster.pots" # REPLACED
-common_name[10, 2]<-"Midwater.trawl.for.cephalopods" # REPLACED
-common_name[8,  2]<-"Midwater.trawl.for.finfish" #
-common_name[7,  2]<-"Midwater.trawl.for.small.pelagics" #
-common_name[18, 2]<-"Pelagic.longline.for.large.pelagics"
-common_name[26, 2]<-"Prawn.trawl"
-common_name[5,  2]<-"Purse.seine.for.piscivorous.fish" # 
-common_name[4,  2]<-"Purse.seine.for.small.pelagics" #
-common_name[22, 2]<-"Scallop.dredge" # 
-common_name[25, 2]<-"Shark.gillnet"
-common_name[23, 2]<-"Traps.for.finfish" # 
+common_name[, 4]<-"Abalone.divers" # Others_Unknown_demersalmollusc
+common_name[,  4]<-"Bottom.trawl.for.benthopelagics" # Trawl_Bottom_benthopelagic>=90cm; Trawl_Bottom_benthopelagic30-90cm
+common_name[, 4]<-"Bottom.trawl.for.cephalopods" # Trawl_Bottom_cephalopods
+common_name[, 4]<-"Bottom.trawl.for.deepwater.demersal.fish" # Trawl_Bottom_demersal30-90cm, Trawl_Bottom_demersal<30cm, Trawl_Bottom_demersal>=90cm, Trawl_Bottom_rays<90cm, Trawl_Bottom_shark>=90cm, Trawl_Bottom_rays>=90cm, 
+common_name[, 4]<-"Bottom.trawl.for.flathead" # Trawl_Bottom_flatfish<90cm
+common_name[,  4]<-"Bottom.trawl.for.orange.roughy" # Trawl_Bottom_demersal30-90cm
+common_name[, 4]<-"Crab.trawl" #
+common_name[,  4]<-"Danish.seine"
+common_name[, 4]<-"Demersal.finfish.gillnet"
+common_name[, 4]<-"Demersal.line.for.deepwater.demersal.fish"
+common_name[,  4]<-"Demersal.line.for.deepwater.piscivorous.fish" #
+common_name[, 4]<-"Demersal.line.for.deepwater.shark"
+common_name[, 4]<-"Demersal.line.for.shallow.water.finfish"
+common_name[, 4]<-"Jig.for.cephalopods" # REPLACED 
+common_name[, 4]<-"Lobster.pots" # REPLACED
+common_name[, 4]<-"Midwater.trawl.for.cephalopods" # REPLACED
+common_name[,  4]<-"Midwater.trawl.for.finfish" #
+common_name[,  4]<-"Midwater.trawl.for.small.pelagics" #
+common_name[, 4]<-"Pelagic.longline.for.large.pelagics"
+common_name[, 4]<-"Prawn.trawl"
+common_name[,  4]<-"Purse.seine.for.piscivorous.fish" # 
+common_name[,  4]<-"Purse.seine.for.small.pelagics" #
+common_name[, 4]<-"Scallop.dredge" # 
+common_name[, 4]<-"Shark.gillnet"
+common_name[, 4]<-"Traps.for.finfish" # 
 
 # Match Mizer
 common_name[25, 3]<-"GHAT - Southern Shark Gillnet"

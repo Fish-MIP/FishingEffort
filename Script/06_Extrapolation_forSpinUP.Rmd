@@ -1,0 +1,207 @@
+---
+title: "Extrapolation_for_spinUP"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The aim of this file is to extrapolate effort between 1850 and 1950 using effort data from 1950 to 2017 (effort_histsoc_1950_2010.csv) for model spin up. 
+
+STEPS: 
+1. Using aggregated effort file on gem48 -> apply gam (as per Yannick code) and extend values back for each LME, EEZ, Fishing country, FGroup and gear combination
+  a. Do it by fishing country first so that you can compare with Yannick’s reconstructed data 1850-1950 - BUT these data is not ready yet so remove from gem48 - and with Reg's hist cacth data where catches are available only for some coutries. Choose a country for which Yannick’s data is available -> belgium, frnce+algeria.   
+  b. Do it with NV as this is effort in Yannick's reconstructed data (you could then do it for NV, P, tonnage, and calucalte DayKw or for DayKW directly). 
+2. Check that the rate of change in extrapolated effort = rate of change in Yannick's reconstructed effort.
+3. Check that the rate of change in extrapolated effort = (proportional to) the rate of change in hist catches.  
+
+4. Do the same for gridded data. 
+
+## Effort data 
+
+```{r cars}
+
+rm(list=ls())
+
+#### NEW DATA FROM 07 - standarised fields across effort, catch and hist catch
+# WARNING they all nclude only 6 main groups (demersal and pelagic X 3 sizes) - this will change when the catch dataset will be updated. 
+load("/rd/gem/private/users/yannickr/temp_data_from_FishingEffort_Rpj_07script.RData")
+
+library(tidyverse)
+
+effort<-final_effort 
+
+# select Industrial as it is the one avaible for both effort and catches, aggregate at SAUP level and pick a country to test the code 
+saup<-read_csv("/rd/gem/private/users/yannickr/SAUPcode_to_Country.csv")
+toKeep<-unique(filter(saup, Country %in% c("France", "Algeria"))$SAUP_Country_Nbr)
+# NEED TO PROVIDE THIS TO FISHMIP!!!! 
+
+effort_extr<-effort %>% 
+  filter(Sector == "Industrial") %>% # WARNING: excluding artisanal changes the trend considerably. Industrial is the only sector in catches
+  filter(SAUP %in% toKeep) %>% 
+  group_by(Year) %>% 
+  summarise(NV = sum(NV, na.rm = TRUE),
+            NomActive = sum(NomActive, na.rm = TRUE)) %>% 
+  ungroup()
+
+ggplot(effort_extr, aes(x = Year, y=NomActive))+
+  geom_point()
+
+```
+
+## Fit the GAM
+
+```{r gam, echo=FALSE}
+
+# Yannick's code use to extrapolate effort:
+# library(gam)
+# # gam_model<-gam(Total_FRA ~ s(Year,50),data=Data, family=gaussian(link="log"),se=TRUE)  
+# # Data$gam<-round(predict(gam_model,newdata = Data,type='response'))
+# # plot(Data$Year,Data$Total_FRA,ylim=c(0,max(Data$Total_FRA,na.rm=T)*1.1))
+# # par(new=T)  
+# # plot(Data$Year,Data$gam,col="red",type='l',ylim=c(0,max(Data$Total_FRA,na.rm=T)*1.1))
+#  
+library(gam)
+gam_model<-gam(NomActive ~ s(Year),data=effort_extr, family=gaussian(link="log"),se=TRUE)
+effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
+plot(effort_extr$Year,effort_extr$NomActive,ylim=c(0,max(effort_extr$NomActive,na.rm=T)*1.1))
+par(new=T)
+plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
+
+
+# use other package
+library(mgcv)
+
+gam_model<-gam(NomActive ~ s(Year, k=3),data=effort_extr) # WARNING - if k>3 effort increases with decreased year - overfitting? for sure not what we want .. OPTION to set k = 10 as def and decrease by one uit each time if effort 1949<1950?? 
+gam.check(gam_model)
+effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
+head(effort_extr)
+
+plot(effort_extr$Year,effort_extr$NomActive)
+par(new=T)
+plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
+
+# predict backwords 
+newd <- data.frame(Year = seq(1850, 2017))
+newd$pred <- predict.gam(gam_model,newd)
+newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
+
+# all data 
+effort_all<-effort_extr %>% 
+  full_join(newd, by = "Year") %>% 
+  dplyr::select(-NV)
+
+effort_all_plot<-effort_all %>% 
+  gather("a","b",-Year) # %>% # WARNING TO CONSIDER 
+  # gather("c","d",-Year, -a,-b) # should be OK but needs to check - also no projections if using this  
+
+ggplot(effort_all_plot,aes(x = Year, y = b, group = a, color = a))+
+  geom_line()
+
+```
+
+## Repeat using Yannic's extended data - only if NV - also these data not ready yet
+
+```{r}
+
+# to consider: 
+# only NV available, no NomActive 
+# only few countries available
+# total might include artisanal so not comparable with catches below 
+
+# extrapolated<-read_csv("/rd/gem/private/users/yannickr/Extrapolation_1800/France_Algeria.csv")
+# head(extrapolated)
+# 
+# ext<-extrapolated %>% 
+#   group_by(Year) %>% 
+#   summarise(Total_FRA = sum(Total_FRA, na.rm = TRUE)) %>% 
+#   ungroup()
+# 
+# all3<-effort_all %>% 
+#   full_join(ext)
+# 
+# head(all3)
+# 
+# all4<-all3 %>% 
+#   gather("a","b",-Year)
+# # WARNING TO CONSIDER 
+# 
+# ggplot(all4,aes(x = Year, y = b, group = a, color = a))+
+#   geom_line()
+
+```
+
+## Check with Reg's historical catch 
+
+```{r catch}
+
+# catcha dn catchHist ----
+
+catchHist<-final_catch_hist
+catch<-final_catch
+
+sort(unique(catch$CNumber)) # NOTE: historical has a limited number of countries as per Reg's comment 
+
+catchHist <- catchHist %>% 
+  filter(SAUP %in% toKeep) %>% 
+  group_by(Year) %>% 
+  summarise(catch = sum(catch, na.rm = TRUE))
+
+head(catchHist)
+
+catch<-catch %>% 
+  filter(SAUP %in% toKeep) %>% 
+  group_by(Year) %>% 
+  summarise(catch = sum(catch, na.rm = TRUE))
+
+catch_all<-catchHist %>% 
+  full_join(catch)
+
+# looks OK 
+ggplot(catch_all, aes(x = Year, y=catch))+
+  geom_point()
+
+# merge all dataset calculate relative values to 1950 ---- 
+final<-effort_all %>% 
+  full_join(catch_all, by = "Year")
+
+ref<-final %>% 
+  filter(Year == 1950)
+
+final<-final %>% 
+  mutate(EffRelative = NomActive/ref$NomActive, # WARNING - do we still need to gam column? it should be gam applied to 1950-2010 
+         PredRelative = pred/as.numeric(ref$pred), # WARNING - not sure why you need as.numeric here
+         CatchRelative = catch/ref$catch) 
+
+final2<-final %>% 
+  dplyr::select(Year, EffRelative:CatchRelative) %>% 
+  gather("Type", "Value", -Year)
+# WARNING - check Warning!
+
+ggplot(data = final2, aes(x = Year, y = Value, color=Type, shape=Type)) +
+  geom_line(data = filter(final2, Type == "PredRelative") ) + 
+  geom_point(data = filter(final2, Type %in% c("CatchRelative", "EffRelative")))+
+  theme_bw()
+
+# check using absolute and not relative values ----
+final3<-final %>% 
+  mutate(EffRelative = NomActive, 
+         PredRelative = pred,
+         CatchRelative = catch)
+
+final3<-final3 %>% 
+  dplyr::select(Year, EffRelative:CatchRelative) %>% 
+  gather("Type", "Value", -Year)
+# WARNING - check Warning!
+
+ggplot(data = final3, aes(x = Year, y = Value, color=Type, shape=Type)) +
+  geom_line(data = filter(final3, Type == "PredRelative") ) + 
+  geom_point(data = filter(final3, Type %in% c("CatchRelative", "EffRelative")))+
+  theme_bw()+
+  facet_wrap(~Type, scales = "free", nrow = 3)
+
+```
+
