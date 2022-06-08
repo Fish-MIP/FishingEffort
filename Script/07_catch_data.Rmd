@@ -9,91 +9,77 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-the aim of this file is to aggregate Reg's historical catch data as per Yannick's effort data 
+The aim of this file is to aggregate Reg's historical catch data as per Yannick's effort data 
 
-# explore files from Reg 
-
-```{r data}
-
-rm(list=ls())
-# 
-# library(tidyverse)
-# 
-# catch<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/HistoricalCell.csv")
-# head(catch) 
-# sort(unique(catch$ID))
-# 
-# # # where is the lat/lon for each cell? 
-# # Historical.csv
-# # LMECells.csv
-# # HistoricalCell.csv
-# # HistoricalIndex.csv
-# # Taxongroups.csv
-# # TotalTakeHisttsqkm.csv
-# 
-# index<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/HistoricalIndex.csv")
-# head(index)
-# 
-# length(sort(unique(catch$Cell))) # NOTE these are not all cells in the globe so need to add the missing ones. 
-# 
-# length(sort(unique(index$ID))) # this includes more ID then the below meaning that some catch was not allocated to cell
-# length(sort(unique(catch$ID)))
-# 
-# a<-setdiff(unique(index$ID), unique(catch$ID)) # in index but not in catch 
-# setdiff(unique(catch$ID), unique(index$ID))
-# 
-# b<-filter(index, ID %in% a) # they are all unknown records from "Germany" "Denmark" "Finland"
-# unique(b$CountryName)
-# 
-# # Data interpretation
-# 
-# filter(index, ID == 1021650) # ID specific 
-# a<-filter(catch, ID == 1021650, Reported !=0 | IUU !=0 | Discards !=0 ) # this allocates the above to cells - the sum is equal to the above 
-# a<-a %>% group_by(ID) %>% summarise(r = sum(Reported), i = sum(IUU), d = sum(Discards))
-# a
-# 
-# # merge the 2 datase this shoudl be the gridded file. you should then exclude the unknown records above making sure taht you keep all cells in the globe  
-# trial<-catch %>% 
-#   full_join(index)
-# 
-# sort(unique(trial$Cell))
-# 
-# nrow(trial)
-# nrow(catch) # this should be the same 
-# 
-# index2<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/Historical.csv")
-# head(index2)
-# index3<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/LMECells.csv") 
-# head(index3)
-# index4<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/TotalTakeHisttsqkm.csv")  
-# head(index4)
-# index5<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/Taxongroups.csv") 
-# head(index5)
-
-```
+WARNING on units
+1. Catch is in tonnes (by LME and EEZ etc), can /AreaSqKm2 to get catch rates. Though the number in each grid cell when doing the aggregation was differnt, was this considered somehow? 
+2. CatchHist is in tonnes (by grid cell), can /area grid cell to get catch rates. Reg NOTES: PPS if you decide to map using the cell data then you should NOT use the tonnes but rather the catch rate (tonnes per sq km of ocean) as the cells vary in size and tonnes would be misleading ...
+3. Effort is in dayKW - should we treat this as the catches and considered Area of either grid cell or LME/EEZ to get a consistent rate? Possibly not as there is no area component in this unit of effort (Ryan)? Cami - not understanding much how this works in terms of units and weights ...   
 
 # Add LME and EEZ to historical cacth data from Reg
 
+*WARNING* - updated catch data in /rd/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData
+taxonomic codes updated too and now on Desktop (CodesRevisedJune2022) - see email from Reg 5/06/22 for more info on file and codes - THEN UPLOAD AND SUMMARISE HERE 
+CheckCatchTotals.xls important for checking data - do same as above 
+
 ```{r new data}
 
-library(tidyverse)
+rm(list=ls())
 
-catchHist<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/HistoricalCami2.csv")
-head(catchHist) 
-sort(unique(as.data.table(catchHist)$Year))
+library(tidyverse)
+library(data.table)
+library(dtplyr)
+library(tictoc)
+
+# ORIGIN: data sent from Reg on 20/05/22 - RE: question about mapping catch and effort
+# NOTE from REG: This has the data by cell (with lat and long) by year by country fishing (represented by a code CNumber) by FGroup (represented by a code). The numbers are in tonnes for reported, IUU and Discards. Typically you would ignore discards as they can be any species (not the one in the record usually). So I would combine reported and IUU estimated.
+
+# catchHist<-fread("/rd/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/HistoricalCami2.csv")
+
+
+### UPDATE data origin .... 
+
+# historical/ industrial 
+hist<-fread("/rd/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/HistoricalIndCami.csv")
+head(hist)
+nrow(hist)
+hist<-lazy_dt(hist)
+
+# non historical / non industrial 
+recent_art<-fread("/rd/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/NonHistoricalNIndCami.csv")
+head(recent_art)
+nrow(recent_art)
+recent_art<-lazy_dt(recent_art)
+
+# non historical / industrial
+tic()
+recent_ind<-fread("/rd/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/NonHistoricalIndCami_toCombine/NonHistoricalIndCami.csv")
+head(recent_ind) 
+nrow(recent_ind)
+toc()
+recent_ind<-lazy_dt(recent_ind)
+
+# all data merged! 
+catch<-hist %>% 
+  full_join(recent_art) %>% 
+  full_join(recent_ind)
+
+# head(as.data.table(catch))
+# nrow(as.data.table(catch)) # 116450350
+# nrow(hist) + nrow(recent_ind) + nrow(recent_art) # 116450350
+# sort(unique(as.data.table(catch)$Year)) # 1869 - 2017
 
 # use same approach as in 02_merge_effort_spetial_data.Rmd to add LME, EEZ, FAO regions and aggregate data by these groups
 
 ### paste code from script 02 ----
 
 # directories 
-library(dtplyr)
+# library(dtplyr)
 library(dplyr)
-library(data.table)
-library(here)
+# library(data.table)
 library(vroom)
 library(parallel)
-library(tictoc)
+# library(tictoc)
 library(geoR)
 library(raster)
 library(here)
@@ -158,166 +144,238 @@ missing_fao_eez <-
   filter(is.na(fao_area)) %>% #29831 where FAO areas are NA but LME are not
   filter(is.na(eez_country_code)) #29830 where EEZ are NA but LME are not - this does not change depending on order. So there is one cell where the is LME data and EEZ data but not FAO area data
 
-# CN not sure I need these 2 lines...
-# Year <- as.numeric(str_extract(this_file_name, pattern =  "([[:digit:]])+"))
-# these_data <- fread(this_source_path)
-catchHist <- lazy_dt(catchHist)
-
 ## end paste ----
 
 # add LME and  EEZ to catchHist ---- 
 
-head(catchHist) 
-head(LMEs)
-head(EEZ_adj)
+# head(catchHist) 
+# head(LMEs)
+# head(EEZ_adj)
+# 
+# # do lat and long on the LME and EEZ file have the same resolution as in catchHist? yes
+# # do loat and long cover the globe? not for catchHist
+# 
+# unique(sort(as.data.table(catchHist)$Lat))
+# unique(sort(as.data.table(catchHist)$Lon))
+# 
+# unique(sort(as.data.table(LMEs)$Lat))
+# unique(sort(as.data.table(LMEs)$Lon))
+# 
+# unique(sort(as.data.table(EEZ_adj)$Lat))
+# unique(sort(as.data.table(EEZ_adj)$Lon))
 
-# do lat and long on the LME and EEZ file have the same resolution as in catchHist? yes
-# do loat and long cover the globe? not for catchHist
-
-unique(sort(as.data.table(catchHist)$Lat))
-unique(sort(as.data.table(catchHist)$Lon))
-
-unique(sort(as.data.table(LMEs)$Lat))
-unique(sort(as.data.table(LMEs)$Lon))
-
-unique(sort(as.data.table(EEZ_adj)$Lat))
-unique(sort(as.data.table(EEZ_adj)$Lon))
-
-catchHist <- catchHist %>%
+tic()
+catch2 <- catch %>%
   select(-Seq) %>% 
   left_join(LMEs, by=c("Lat", "Lon")) %>%
   left_join(EEZ_adj, by=c("Lat", "Lon")) %>%
   # left_join(FAO_regions, by=c("Lat", "Lon")) %>%
   # mutate(catch = rowsum(across(Reported:Discards), na.rm = TRUE)) %>% 
-  group_by(Year,CNumber,FGroup, LME, eez_country_code,eez_country_name) %>%
+
+# WARNING: Should we weight by area here??? Same for effort (in script 02) and same for recent catch!!
+
+  group_by(Year,CNumber,FGroup, LME, eez_country_code,eez_country_name,Sector) %>%
   summarise(Reported = sum(Reported, na.rm = TRUE),
             IUU = sum(IUU, na.rm = TRUE),
             Discards = sum(Discards, na.rm = TRUE)) %>% 
             # Area = sum(Area, na.rm = TRUE)) %>% # WARNING - not sure about area here. LME 0 < LME 9 possibly because not all grid cells are considered but only the ones with catch? 
   # mutate(Year = Year) %>% # WARNING - this was from script 02 - not sure about it, see line above on Year
   ungroup() %>% 
-  as.data.table()
+  as.data.table() # NOT SURE WHY I DO THIS HERE - no need for speed anymore but for quick data checking?
+toc()
 
-head(catchHist)
+# # should we sum catches?
+# catch2<-catch2 %>%
+#   rowwise(Year,CNumber, FGroup,LME,eez_country_code,eez_country_name,Sector) %>%
+#   dplyr::summarise(catch = sum(Reported,IUU)) %>% # dischards not usually accounted for
+#   ungroup() # %>%
+#   # mutate(Sector = "Industrial")
 
-catchHist<-catchHist %>%
-  rowwise(Year,CNumber, FGroup,LME,eez_country_code,eez_country_name) %>% 
-  dplyr::summarise(catch = sum(Reported,IUU,Discards)) %>% 
-  ungroup() %>% 
-  mutate(Sector = "Industrial")
-
-head(catchHist) 
 ```
 
 # add catchHist to catch from Reg and format as effort from Yannick  
+*WARNING* update the dataset info - catch is now given as both hist and recent .... 
 
 ```{r catch}
 
-catch<-read_csv("/rd/gem/private/users/yannickr/catch_histsoc_1950_2014.csv") 
-head(catch)
-sort(unique(catch$FGroup)) # WARNING - limited number of FGroup - complete version will be available soon 
+# # ORIGIN: downloaded from ISIMIP2b folder and provided by either Reg or Yannick for last round of model runs 
+# catch<-read_csv("/rd/gem/private/users/yannickr/catch_histsoc_1950_2014.csv") 
+# head(catch)
+# sort(unique(catch$FGroup)) # WARNING - limited number of FGroup - complete version will be available soon 
 
-effort<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2010.csv")
+# ORIGIN: created through script 02 from original Yannicks country files in Gem48 and re-arranged and trimmed in script 05.    
+effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2010.csv")
 effort<-effort[,-1]
-sort(unique(effort$FGroup)) 
+# sort(unique(effort$FGroup)) 
 
-head(catchHist)  
-head(catch) 
-head(effort) 
+# head(catch) 
+# head(effort) 
 
 # do the LME and EEZ match? ----
 
-# EEZ - OK
-sort(unique(catchHist$eez_country_name))
-sort(unique(catch$EEZ))
-sort(unique(effort$eez_country_name))
+# # EEZ - OK
+# sort(unique(catch$eez_country_name))
+# sort(unique(effort$eez_country_name))
+# 
+# # LME - OK
+# sort(unique(catch$LME)) 
+# sort(unique(effort$LME))
 
-# LME - OK
-sort(unique(catchHist$LME))
-sort(unique(catch$LMEnbr)) 
-sort(unique(effort$LME))
-
-# aggregate catch by LME and EEZ, excluding FAO as not in effort and catchHist (but could be added: for effort you would need to change 05_trimFinalData and for catchHist you would need to change the above section) 
-
-# rename columns before merging and exclude some 
-catch<-catch %>% 
-  mutate(catch = rowSums(across(Reported:IUUs), na.rm = TRUE)) %>% # WARNING - command not working on other files
-  group_by(EEZ, LMEnbr, FGroup, Year, Fcountry, Sector) %>% 
-  summarise(catch = sum(catch, na.rm = TRUE)) %>% # possible to sum AreaSqKm2 assuming that this includes all cell in EEZ and LME?    
-  ungroup() %>% 
-  dplyr::rename(LME = LMEnbr, eez_country_name = EEZ)
-
-# still discrepancies? Yes, fishing country (SAUP) and fishing group (FGroup) ----
-head(catchHist)
-head(catch) 
-head(effort)  
+# not needed any more as per new data
+# # aggregate catch by LME and EEZ, excluding FAO as not in effort and catchHist (but could be added: for effort you would need to change 05_trimFinalData and for catchHist you would need to change the above section) 
+# 
+# # rename columns before merging and exclude some 
+# catch<-catch %>% 
+#   mutate(catch = rowSums(across(Reported:IUUs), na.rm = TRUE)) %>% # WARNING - command not working on other files
+#   group_by(EEZ, LMEnbr, FGroup, Year, Fcountry, Sector) %>% 
+#   summarise(catch = sum(catch, na.rm = TRUE)) %>% # possible to sum AreaSqKm2 assuming that this includes all cell in EEZ and LME?    
+#   ungroup() %>% 
+#   dplyr::rename(LME = LMEnbr, eez_country_name = EEZ)
+# 
+# # still discrepancies? Yes, fishing country (SAUP) and fishing group (FGroup) ----
+# head(catchHist)
+# head(catch) 
+# head(effort)  
 
 # fishing country 
 saup<-read_csv("/rd/gem/private/users/yannickr/SAUPcode_to_Country.csv")
-head(saup)
+# head(saup)
 
-# is CNumber == SAUP? it looks like it
-sort(unique(catchHist$CNumber)) 
-sort(unique(saup$SAUP_Country_Nbr))
-unique(filter(catchHist, CNumber == 124)$eez_country_name)
-filter(saup, SAUP_Country_Nbr == 124)
+# # is CNumber == SAUP? it looks like it BUT hard to say ... 
+# sort(unique(catch$CNumber)) 
+# sort(unique(saup$SAUP_Country_Nbr))
+# unique(filter(catch, CNumber == 124)$eez_country_name)
+# filter(saup, SAUP_Country_Nbr == 124)
 
 saup<-saup %>% 
   dplyr::rename(SAUP = SAUP_Country_Nbr,
                 FCountryName = Country) %>% 
   select(-Region)
 
-catchHist<-catchHist %>% 
-  dplyr::rename(SAUP = CNumber) %>%
-  select(-eez_country_code)
+catch2<-catch2 %>% 
+  dplyr::rename(SAUP = CNumber) %>% 
+  left_join(saup, by ="SAUP")
 
-# WARNING - need to check this
-sort(unique(catch$Fcountry))
-sort(unique(saup$ISO3))
-unique(filter(catch, Fcountry == "AGO"))
-unique(filter(catch, Fcountry == "AGO")$eez_country_name)
-filter(saup, ISO3 == "AGO") # is it OK for Angola to fish in all these places? not sure how to check ...  
+# head(catch2)
 
-catch<-catch %>% 
-  dplyr::rename(ISO3 = Fcountry) %>% 
-  left_join(saup, by = "ISO3") %>% 
-  select(-ISO3, -FCountryName)
+# not needed anymore .... 
+# # WARNING - need to check this
+# sort(unique(catch$Fcountry))
+# sort(unique(saup$ISO3))
+# unique(filter(catch, Fcountry == "AGO"))
+# unique(filter(catch, Fcountry == "AGO")$eez_country_name)
+# filter(saup, ISO3 == "AGO") # is it OK for Angola to fish in all these places? not sure how to check ...  
+# 
+# catch<-catch %>% 
+#   dplyr::rename(ISO3 = Fcountry) %>% 
+#   left_join(saup, by = "ISO3") %>% 
+#   select(-ISO3, -FCountryName)
 
 # FGroup
-taxon<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/Taxongroups.csv")
+# taxon<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/Taxongroups.csv")
+taxon<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/CodesRevisedJune2022_FGroup.csv")
 
-# not matching - updated cacth file will be available soon
-sort(unique(taxon$Descript))
-sort(unique(catch$FGroup))  
-sort(unique(effort$FGroup)) 
-
-# add FGroup to catchHist which now only includes a number code 
-# matching - OK
-sort(unique(taxon$TargetGrpNum)) # missing numbers - are these codes relative to catchHist only? 
-sort(unique(catchHist$FGroup))
-length(sort(unique(taxon$TargetGrpNum))) # 22 groups here 
+# # not matching - updated cacth file will be available soon
+# sort(unique(taxon$Description))
+# sort(unique(catch$FGroup))  
+# sort(unique(effort$FGroup)) 
+# 
+# # add FGroup to catchHist which now only includes a number code 
+# # matching - OK
+# sort(unique(taxon$FunctionalGrp)) # missing numbers - are these codes relative to catchHist only? 
+# sort(unique(catch$FGroup))
+# length(sort(unique(effort$FGroup))) 
 
 # clean
 taxon<-taxon %>% 
-  mutate(Descript = gsub(" ", "", Descript, fixed = TRUE)) %>% # remove white spaces 
-  select(TargetGrpNum, Descript) %>% 
+  mutate(Description = gsub(" ", "", Description, fixed = TRUE),
+         Description = gsub(",", "", Description, fixed = TRUE)) %>% # remove white spaces 
+  select(FunctionalGrp, Description) %>% 
   unique()
 
+# # any missing one in effort/ catch? No - all OK 
+# setdiff(unique(taxon$Description), unique(effort$FGroup))
+# setdiff(unique(effort$FGroup),unique(taxon$Description))
+# 
+# sort(unique(taxon$Description))
+# sort(unique(effort$FGroup))
+
 # merge 
-catchHist<-catchHist %>% 
-  dplyr::rename(TargetGrpNum = FGroup) %>% 
-  left_join(taxon %>% dplyr::rename(FGroup = Descript), by = "TargetGrpNum") %>% 
-  select(-TargetGrpNum)
-  
+catch2<-catch2 %>% 
+  # dplyr::rename(TargetGrpNum = FGroup) %>% 
+  left_join(taxon %>% dplyr::rename(FGroup = FunctionalGrp)) %>% 
+  select(-FGroup) %>% 
+  dplyr::rename(FGroup = Description)
 
-# WARNING - for our analysis now: should we consider only the 6 main groups?
-toKeep <- sort(unique(catch$FGroup))
-final_effort<- effort %>% filter(FGroup %in% toKeep)
-final_catch <- catch
-final_catch_hist <- catchHist %>% filter(FGroup %in% toKeep) 
+### it would be nice to standardise them fully: 
+# add LME name and rename LME to LMEnrb
+# for effort add FCountryName and/or ISO3 
+# also eez col names should be standardised ... 
 
+# sector ... needs to be Industriala dn Artisanal 
+catch2<-catch2 %>% 
+  mutate(Sector = ifelse(Sector == 2, "artisanal", "industrial"))
+
+# # should we sum catches?
+# catch3<-catch2 %>%
+#   # as.data.table() %>% # rowwise does not work otherwise but this needs to be checked!!! 
+#   rowwise(Year,CNumber, FGroup,LME,eez_country_code,eez_country_name,Sector) %>%
+#   dplyr::summarise(catch = sum(Reported,IUU)) %>% # dischards not usually accounted for
+#   ungroup() # %>%
+#   # mutate(Sector = "Industrial")
+
+```
+
+# check cacth data given Reg summaries and plot
+
+```{r}
+
+annual<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/CheckCatchTotalsCN.csv")
+
+# unique(annual$Sector)
+annual<-annual %>% 
+  mutate(Sector = ifelse(Sector == "artisanal", "artisanal", "industrial")) %>% 
+  select(-"...6") %>% 
+  mutate(type = "summaries")
+
+trial<-catch2 %>% 
+  group_by(Year, Sector) %>% 
+  summarise(Reported = sum(Reported , na.rm = TRUE),
+            IUU = sum(IUU , na.rm = TRUE),
+            Discards = sum(Discards , na.rm = TRUE)) %>% 
+  mutate(type = "dataset")
+
+trial2<-trial %>% 
+  full_join(annual) %>% 
+  as.data.frame(trial2)
+
+trial2<-trial2 %>% 
+  gather("key", "catch", -Year, -type, -Sector)
+
+head(trial2)
+
+ggplot(trial2, aes(x = Year, y = catch, group = key, color = key)) + # color = Sector, group = Sector 
+  geom_point()+
+  theme_bw()+
+  facet_grid(type~Sector)
+
+```
+
+# save final data 
+
+```{r}
+
+# # WARNING - for our analysis now: should we consider only the 6 main groups?
+# toKeep <- sort(unique(catch$FGroup))
+# final_effort<- effort %>% filter(FGroup %in% toKeep)
+final_catch <- catch2
+# final_catch_hist <- catchHist %>% filter(FGroup %in% toKeep) 
+final_effort<- effort # WARNING - no need to save this as it's just the effort you have but here used to check columns
+
+# WARNING - neeed to remove the non-updated version created with previous data from the server after having checked that this is OK 
 # save as RData and load to 06_extrapolation_forSpin up - CONSIDER MERGING THE 2 FILES  
-save(final_effort, final_catch, final_catch_hist, file = "/rd/gem/private/users/yannickr/temp_data_from_FishingEffort_Rpj_07script.RData")
+save(final_effort, final_catch, file = "/rd/gem/private/users/yannickr/temp_data_from_FishingEffort_Rpj_07script_update.RData")
+
 ```
 
 # explore the Unknown_EEZ FGroup in effort

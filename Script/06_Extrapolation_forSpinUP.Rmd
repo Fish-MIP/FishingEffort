@@ -107,27 +107,30 @@ ggplot(effort_all_plot,aes(x = Year, y = b, group = a, color = a))+
 
 ```{r}
 
-# to consider: 
-# only NV available, no NomActive 
-# only few countries available
-# total might include artisanal so not comparable with catches below 
-
+# # to consider: 
+# # only NV available, no NomActive 
+# # only few countries available
+# # total might include artisanal so not comparable with catches below 
+# 
 # extrapolated<-read_csv("/rd/gem/private/users/yannickr/Extrapolation_1800/France_Algeria.csv")
 # head(extrapolated)
 # 
-# ext<-extrapolated %>% 
-#   group_by(Year) %>% 
-#   summarise(Total_FRA = sum(Total_FRA, na.rm = TRUE)) %>% 
+# ext<-extrapolated %>%
+#   group_by(Year) %>%
+#   summarise(Total_FRA = sum(Total_FRA, na.rm = TRUE)) %>%
 #   ungroup()
 # 
-# all3<-effort_all %>% 
+# all3<-effort_all %>%
 #   full_join(ext)
+# 
+# ggplot(all3,aes(x = Year, y = Total_FRA))+
+#   geom_line()
 # 
 # head(all3)
 # 
-# all4<-all3 %>% 
+# all4<-all3 %>%
 #   gather("a","b",-Year)
-# # WARNING TO CONSIDER 
+# # WARNING TO CONSIDER
 # 
 # ggplot(all4,aes(x = Year, y = b, group = a, color = a))+
 #   geom_line()
@@ -138,21 +141,21 @@ ggplot(effort_all_plot,aes(x = Year, y = b, group = a, color = a))+
 
 ```{r catch}
 
-# catcha dn catchHist ----
+# catch and catchHist ----
 
-catchHist<-final_catch_hist
-catch<-final_catch
+# catchHist<-final_catch_hist
+# catch<-final_catch
 
-sort(unique(catch$CNumber)) # NOTE: historical has a limited number of countries as per Reg's comment 
+sort(unique(final_catch$CNumber)) # NOTE: historical has a limited number of countries as per Reg's comment 
 
-catchHist <- catchHist %>% 
+catchHist <- final_catch_hist %>% 
   filter(SAUP %in% toKeep) %>% 
   group_by(Year) %>% 
   summarise(catch = sum(catch, na.rm = TRUE))
 
 head(catchHist)
 
-catch<-catch %>% 
+catch<-final_catch %>% 
   filter(SAUP %in% toKeep) %>% 
   group_by(Year) %>% 
   summarise(catch = sum(catch, na.rm = TRUE))
@@ -202,6 +205,449 @@ ggplot(data = final3, aes(x = Year, y = Value, color=Type, shape=Type)) +
   geom_point(data = filter(final3, Type %in% c("CatchRelative", "EffRelative")))+
   theme_bw()+
   facet_wrap(~Type, scales = "free", nrow = 3)
+
+```
+
+# loop through data to get a broad picture of trends by country and the data you have 
+
+```{r loop}
+
+saup<-read_csv("/rd/gem/private/users/yannickr/SAUPcode_to_Country.csv")
+toKeep<-unique(filter(saup, Country %in% c("France", "Algeria"))$SAUP_Country_Nbr)
+
+toKeep<-unique(saup$SAUP_Country_Nbr)
+which(toKeep == 226)
+title<-unique(saup$Country)
+
+length(toKeep)
+
+plot_relative<-list()
+plot_absolute<-list()
+plot_final_effort<-list()
+final_effort_data<-list()
+
+for(i in 1:length(toKeep)){
+  
+  # i = 226 # 13 grenada - not working well
+  filter(saup, SAUP_Country_Nbr == toKeep[[i]])
+  
+  effort_extr<-effort %>% 
+    filter(Sector == "Industrial") %>% # WARNING: excluding artisanal changes the trend considerably. Industrial is the only sector in catches
+    filter(SAUP %in% toKeep[[i]]) %>% 
+    group_by(Year) %>% 
+    summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
+    ungroup()
+  
+  if(dim(effort_extr)[1] !=0){ # if empty ... don't run code ...
+  
+  # filter(effort_extr, Year >2010)  
+    
+  gam_model<-gam(NomActive ~ s(Year, k=5),data=effort_extr) # WARNING - if k>3 effort increases with decreased year - overfitting? for sure not what we want .. OPTION to set k = 10 as def and decrease by one uit each time if effort     1949<1950?? 
+  # gam.check(gam_model)
+  effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
+
+  plot(effort_extr$Year,effort_extr$NomActive)
+  par(new=T)
+  plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
+
+  # predict backwords 
+  newd <- data.frame(Year = seq(1850, 2010)) # this effort is to 2010
+  newd$pred <- predict.gam(gam_model,newd)
+  newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
+  
+  # all data 
+  effort_all<-effort_extr %>% 
+    full_join(newd, by = "Year") 
+  
+  maxYear<-min(filter(effort_all, !is.na(NomActive))$Year) # last year of available effort estimates (NomActive)
+  
+  # if effort increases during extrapolation but decreases before extrapolation...  increase kappa
+  # if effort 1940 > effort 1950 BUT effort at maxYear < effort at maxYear+10 -> re-run gam and change kappa 
+  if (i == 226){n = 1}else{n=10} # avoid error when not enough years 
+  if(filter(effort_all, Year == 1940)$pred > filter(effort_all, Year == 1950)$pred & filter(effort_all, Year == maxYear)$NomActive < filter(effort_all, Year == maxYear+n)$NomActive) {
+      
+    gam_model<-gam(NomActive ~ s(Year, k=10),data=effort_extr) 
+    effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
+
+    plot(effort_extr$Year,effort_extr$NomActive)
+    par(new=T)
+    plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
+    
+    # predict backwords 
+    newd <- data.frame(Year = seq(1850, 2010)) # this effort is to 2010
+    newd$pred <- predict.gam(gam_model,newd)
+    newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
+  
+    # all data 
+    effort_all<-effort_extr %>% 
+      full_join(newd, by = "Year") 
+  }
+    
+  catchHist <- final_catch_hist %>% 
+    filter(SAUP %in% toKeep[[i]]) %>% 
+    group_by(Year) %>% 
+    summarise(catch = sum(catch, na.rm = TRUE))
+
+  catch <- final_catch %>% 
+    filter(SAUP %in% toKeep[[i]]) %>% 
+    group_by(Year) %>% 
+    summarise(catch = sum(catch, na.rm = TRUE))
+
+  catch_all<-catchHist %>% 
+    full_join(catch, by = c("Year", "catch"))
+
+  # # looks OK 
+  # ggplot(catch_all, aes(x = Year, y=catch))+
+  #   geom_point()
+
+  # merge all dataset calculate relative values to 1950 ---- 
+  final<-effort_all %>% 
+    full_join(catch_all, by = "Year")
+  
+  ref<-final %>% 
+    filter(Year == 1950)
+
+  final<-final %>% # WARNING - is this relative?
+    mutate(EffRelative = NomActive/ref$NomActive, # WARNING - do we still need to gam column? it should be gam applied to 1950-2010 
+           PredRelative = pred/as.numeric(ref$pred), # WARNING - not sure why you need as.numeric here
+           CatchRelative = catch/ref$catch) 
+
+  final2<-final %>% 
+    dplyr::select(Year, EffRelative:CatchRelative) %>% 
+    gather("Type", "Value", -Year)
+  # WARNING - check Warning!
+
+  plot<-ggplot(data = final2, aes(x = Year, y = Value, color=Type, shape=Type)) +
+    geom_vline(xintercept = 1950, linetype = "dashed")+
+    geom_line(data = filter(final2, Type == "PredRelative") ) + 
+    geom_point(data = filter(final2, Type %in% c("CatchRelative", "EffRelative")))+
+    ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))+
+    theme_bw()
+  
+  plot_relative[[i]]<-plot
+  names(plot_relative)[i]<-toKeep[i]
+
+  final3<-final %>% 
+    dplyr::select(Year, NomActive, pred, catch) %>% 
+    gather("Type", "Value", -Year) %>% 
+    mutate(group = ifelse(Type == "catch", "Catch", "Effort"))
+  # WARNING - check Warning!
+  
+  (plot_all2<-ggplot(data = final3, aes(x = Year, y = Value, color=Type, shape=Type)) +
+    geom_line(data = filter(final3, Type == "pred") ) + 
+    geom_point(data = filter(final3, Type %in% c("catch", "NomActive")))+
+    theme_bw()+
+    ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))+
+    facet_wrap(~group, scales = "free", nrow = 3)+
+    theme(legend.position="none"))
+  
+  plot_absolute[[i]]<-plot_all2
+  names(plot_absolute)[i]<-toKeep[i]
+
+  # final dataset: 
+  final_data<-final %>% 
+    mutate(NomActive = ifelse(Year <= maxYear, pred, NomActive)) %>% 
+    dplyr::select(-gam, -pred, -catch, -EffRelative, -PredRelative, -CatchRelative)
+  
+  final_effort_data[[i]]<-final_data
+  names(final_effort_data)[i]<-toKeep[i]
+  
+  plot_all3<-ggplot(data = final_data, aes(x = Year, y = NomActive)) +
+    geom_point()+
+    theme_bw()+
+    ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))
+  
+  plot_final_effort[[i]]<-plot_all3
+  names(plot_final_effort)[i]<-toKeep[i]
+  
+  }
+}
+
+# check empty contry and remove gfrom the list 
+plot_absolute<-plot_absolute[lapply(plot_absolute,length)>0]
+
+length(plot_absolute)
+
+library("gridExtra")
+# 4 plot per page - all effort
+ggsave("Output/Absolute_effort_spinup_kAdjusted.pdf", marrangeGrob(grobs = plot_absolute, nrow=1, ncol=2), device = "pdf")
+
+
+# WARNINNG - still problematic - 192, 188, 246, 250, 276, 589, 584,12, 368, 376, 840, 270, 740, 702, 484, 404, 
+
+# # one page per fishing country
+# pdf("Output/Output/Absolute_effort_spinup.pdf", width = 10, height=5)
+# plot_absolute
+# dev.off()
+
+```
+
+# try at LME level 
+
+```{r}
+
+# head(effort)
+toKeep<-unique(effort$LME)
+title # WARNING - to define 
+
+plot_relative<-list()
+plot_absolute<-list()
+plot_final_effort<-list()
+final_effort_data<-list()
+
+for(i in 1:length(toKeep)){
+  
+  i = 14
+  
+  # all datasets: 
+  
+  effort_extr<-effort %>% 
+    filter(Sector == "Industrial") %>% # WARNING: excluding artisanal changes the trend considerably. Industrial is the only sector in catches
+    filter(LME %in% toKeep[[i]]) %>% 
+    group_by(Year) %>% 
+    summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
+    ungroup()
+  
+  catchHist <- final_catch_hist %>% 
+    filter(LME %in% toKeep[[i]]) %>% 
+    group_by(Year) %>% 
+    summarise(catch = sum(catch, na.rm = TRUE))
+
+  catch <- final_catch %>% 
+    filter(LME %in% toKeep[[i]]) %>% 
+    group_by(Year) %>% 
+    summarise(catch = sum(catch, na.rm = TRUE))
+
+  catch_all<-catchHist %>% 
+    full_join(catch, by = c("Year", "catch"))
+  
+  # if historcal catch exist
+  # fit gam on catch
+  # calculate the rate of change in predicted values (as you'd need to go all the way back to 1850)
+  # use the rate of change in catches to extend effort back to 1850
+  dim(catchHist)[1] !=0
+  
+  gam_model_catch<-gam(catch ~ s(Year, k=10),data=catch_all) 
+  catch_all$gam<-round(predict(gam_model_catch,newdata = catch_all,type='response'))
+
+  plot(catch_all$Year,catch_all$catch)
+  par(new=T)
+  plot(catch_all$Year,catch_all$gam,col="red",type='l')
+
+  # predict backwords 
+  maxYearCatch<-max(catch_all$Year)
+  newd <- data.frame(Year = seq(1850, maxYearCatch)) 
+  newd$pred <- predict.gam(gam_model_catch,newd)
+  newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
+  
+  # all data 
+  catch_all<-catch_all %>% 
+    full_join(newd, by = "Year") %>% 
+    dplyr::select(-gam)
+  
+  # calculate rate of change
+  ref<-catch_all %>% 
+    filter(Year == 1950)
+  
+  ref<-as.numeric(ref$pred)
+  
+  rate_of_change<-catch_all %>% 
+    arrange(Year) %>% 
+    mutate(pred = as.numeric(pred)) %>% 
+    mutate(rate = 100 * (pred - ref)/ref) %>% 
+    mutate(Trial_back = ref + (rate/100)*ref) # you need to do this on effort ... apply this rate. 
+  
+  # check 
+  filter(rate_of_change, Year >= 1950, Year <= 1960)
+  
+  # extend effort back 
+  
+  ref<-effort_extr %>% 
+    filter(Year == 1950)
+  
+  ref<-as.numeric(ref$NomActive)
+  
+  trial<-effort_extr %>% 
+    full_join(rate_of_change, by = "Year") %>% 
+    mutate(NomActive_catch_based = case_when(Year >= 1950 ~ NomActive,
+                                             Year < 1950 ~ ref + (rate/100)*ref))
+  
+  # check - it seems working ... 
+  ggplot(data = trial, aes(x = Year, y = NomActive_catch_based)) +
+    geom_point()
+  ggplot(data = trial, aes(x = Year, y = pred)) +
+    geom_point()
+  
+  
+  
+  
+  # if cacth does not exist use effort only... 
+  
+  
+  
+  # if(dim(effort_extr)[1] !=0){ # if empty ... don't run code ...
+  
+  # filter(effort_extr, Year >2010)  
+    
+  gam_model<-gam(NomActive ~ s(Year, k=5),data=effort_extr) # WARNING - if k>3 effort increases with decreased year - overfitting? for sure not what we want .. OPTION to set k = 10 as def and decrease by one uit each time if effort     1949<1950?? 
+  # gam.check(gam_model)
+  effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
+
+  plot(effort_extr$Year,effort_extr$NomActive)
+  par(new=T)
+  plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
+
+  # predict backwords 
+  newd <- data.frame(Year = seq(1850, 2010)) # this effort is to 2010
+  newd$pred <- predict.gam(gam_model,newd)
+  newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
+  
+  # all data 
+  effort_all<-effort_extr %>% 
+    full_join(newd, by = "Year") 
+  
+  maxYear<-min(filter(effort_all, !is.na(NomActive))$Year) # last year of available effort estimates (NomActive)
+  
+  # if effort increases during extrapolation but decreases before extrapolation...  increase kappa
+  # if effort 1940 > effort 1950 BUT effort at maxYear < effort at maxYear+10 -> re-run gam and change kappa 
+  # if (i == 226){n = 1}else{n=10} # avoid error when not enough years 
+  if(filter(effort_all, Year == 1940)$pred > filter(effort_all, Year == 1950)$pred & filter(effort_all, Year == maxYear)$NomActive < filter(effort_all, Year == maxYear+n)$NomActive) {
+      
+    gam_model<-gam(NomActive ~ s(Year, k=10),data=effort_extr) 
+    effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
+
+    plot(effort_extr$Year,effort_extr$NomActive)
+    par(new=T)
+    plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
+    
+    # predict backwords 
+    newd <- data.frame(Year = seq(1850, 2010)) # this effort is to 2010
+    newd$pred <- predict.gam(gam_model,newd)
+    newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
+  
+    # all data 
+    effort_all<-effort_extr %>% 
+      full_join(newd, by = "Year") 
+  }
+    
+  catchHist <- final_catch_hist %>% 
+    filter(LME %in% toKeep[[i]]) %>% 
+    group_by(Year) %>% 
+    summarise(catch = sum(catch, na.rm = TRUE))
+
+  catch <- final_catch %>% 
+    filter(LME %in% toKeep[[i]]) %>% 
+    group_by(Year) %>% 
+    summarise(catch = sum(catch, na.rm = TRUE))
+
+  catch_all<-catchHist %>% 
+    full_join(catch, by = c("Year", "catch"))
+
+  # # looks OK 
+  # ggplot(catch_all, aes(x = Year, y=catch))+
+  #   geom_point()
+
+  # merge all dataset calculate relative values to 1950 ---- 
+  final<-effort_all %>% 
+    full_join(catch_all, by = "Year")
+  
+  ref<-final %>% 
+    filter(Year == 1950)
+
+  final<-final %>% # WARNING - is this relative?
+    mutate(EffRelative = NomActive/ref$NomActive, # WARNING - do we still need to gam column? it should be gam applied to 1950-2010 
+           PredRelative = pred/as.numeric(ref$pred), # WARNING - not sure why you need as.numeric here
+           CatchRelative = catch/ref$catch) 
+
+  final2<-final %>% 
+    dplyr::select(Year, EffRelative:CatchRelative) %>% 
+    gather("Type", "Value", -Year)
+  # WARNING - check Warning!
+
+  plot<-ggplot(data = final2, aes(x = Year, y = Value, color=Type, shape=Type)) +
+    geom_vline(xintercept = 1950, linetype = "dashed")+
+    geom_line(data = filter(final2, Type == "PredRelative") ) + 
+    geom_point(data = filter(final2, Type %in% c("CatchRelative", "EffRelative")))+
+    ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))+
+    theme_bw()
+  
+  plot_relative[[i]]<-plot
+  names(plot_relative)[i]<-toKeep[i]
+
+  final3<-final %>% 
+    dplyr::select(Year, NomActive, pred, catch) %>% 
+    gather("Type", "Value", -Year) %>% 
+    mutate(group = ifelse(Type == "catch", "Catch", "Effort"))
+  # WARNING - check Warning!
+  
+  plot_all2<-ggplot(data = final3, aes(x = Year, y = Value, color=Type, shape=Type)) +
+    geom_line(data = filter(final3, Type == "pred") ) + 
+    geom_point(data = filter(final3, Type %in% c("catch", "NomActive")))+
+    theme_bw()+
+    ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))+
+    facet_wrap(~group, scales = "free", nrow = 3)+
+    theme(legend.position="none")
+  
+  plot_absolute[[i]]<-plot_all2
+  names(plot_absolute)[i]<-toKeep[i]
+
+  # final dataset: 
+  final_data<-final %>% 
+    mutate(NomActive = ifelse(Year <= maxYear, pred, NomActive)) %>% 
+    dplyr::select(-gam, -pred, -catch, -EffRelative, -PredRelative, -CatchRelative)
+  
+  final_effort_data[[i]]<-final_data
+  names(final_effort_data)[i]<-toKeep[i]
+  
+  plot_all3<-ggplot(data = final_data, aes(x = Year, y = NomActive)) +
+    geom_point()+
+    theme_bw()+
+    ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))
+  
+  plot_final_effort[[i]]<-plot_all3
+  names(plot_final_effort)[i]<-toKeep[i]
+  
+  # }
+}
+
+# check empty contry and remove gfrom the list 
+plot_absolute<-plot_absolute[lapply(plot_absolute,length)>0]
+
+length(plot_absolute)
+
+library("gridExtra")
+# 4 plot per page - all effort
+ggsave("Output/Absolute_effort_spinup_kAdjusted_LME2.pdf", marrangeGrob(grobs = plot_absolute, nrow=1, ncol=2), device = "pdf")
+
+## PROBLEMS 
+# 1 effort increasing: 29, 41, 46 (both + good example of which should we pick as catch and effort do not follow the same trajectories even in 1950 onwards), 63,64,66, 18, 59 (both),19 (both), 20 (both), 23, 3 (both), 52 (both), 53, 57
+# effort not exactly in line with historical catches: 14, 40, 42, 43, 44,45, 22, 15, 16, 2, 7, 9 (gooe example where hist effort = 0 but hist cacth > 0), 49 (nb), 11, 60, 24, 46, 4, 58
+# 62 is strange in terms of catcha and effort relationships 
+
+# solutions: 
+# is historical data available? 
+# no -> gam on effort
+  # is effort decreasing?
+    # yes - OK
+    # non - PROBLEM 
+# yes -> gam on catches -> rate of change relative to 1950 -> effort = rate of change in catches relative to 1950 
+
+
+
+
+```
+
+
+
+# final data at the EEZ, LME, FCoutry, Gear, FGroup level
+
+```{r}
+
+# repeat the above after having checked that the approach works but to reconstruct effort at the aggregated level. 
+
+# how should we group this? 
+# we just create an ID...paste(LME, EEZ< FGroup,)  
+head(effort)
 
 ```
 
