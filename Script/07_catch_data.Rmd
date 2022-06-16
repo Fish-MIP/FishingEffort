@@ -370,11 +370,11 @@ ggplot(trial2, aes(x = Year, y = catch, group = key, color = key)) + # color = S
 # final_effort<- effort %>% filter(FGroup %in% toKeep)
 final_catch <- catch2
 # final_catch_hist <- catchHist %>% filter(FGroup %in% toKeep) 
-final_effort<- effort # WARNING - no need to save this as it's just the effort you have but here used to check columns
+# final_effort<- effort 
 
 # WARNING - neeed to remove the non-updated version created with previous data from the server after having checked that this is OK 
 # save as RData and load to 06_extrapolation_forSpin up - CONSIDER MERGING THE 2 FILES  
-save(final_effort, final_catch, file = "/rd/gem/private/users/yannickr/temp_data_from_FishingEffort_Rpj_07script_update.RData")
+save(final_catch, file = "/rd/gem/private/users/yannickr/temp_data_from_FishingEffort_Rpj_07script_update.RData")
 
 ```
 
