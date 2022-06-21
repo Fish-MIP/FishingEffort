@@ -204,7 +204,8 @@ toc()
 # sort(unique(catch$FGroup)) # WARNING - limited number of FGroup - complete version will be available soon 
 
 # ORIGIN: created through script 02 from original Yannicks country files in Gem48 and re-arranged and trimmed in script 05.    
-effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2010.csv")
+effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017.csv")
+head(effort)
 effort<-effort[,-1]
 # sort(unique(effort$FGroup)) 
 
@@ -374,7 +375,11 @@ final_catch <- catch2
 
 # WARNING - neeed to remove the non-updated version created with previous data from the server after having checked that this is OK 
 # save as RData and load to 06_extrapolation_forSpin up - CONSIDER MERGING THE 2 FILES  
-save(final_catch, file = "/rd/gem/private/users/yannickr/temp_data_from_FishingEffort_Rpj_07script_update.RData")
+# save(final_catch, file = "/rd/gem/private/users/yannickr/temp_data_from_FishingEffort_Rpj_07script_update.RData")
+
+unique(as.data.frame(final_catch)$Year)
+
+fwrite(x = as.data.frame(final_catch), file.path(yannick_dir, "catch_histsoc_1869_2017.csv"))
 
 ```
 
