@@ -1,48 +1,72 @@
 ---
-title: "Extrapolation_for_spinUP"
-output: html_document
+title: "Reconstruct effort for spin-up (1850-1950)"
+author: "Camilla Novaglio"
+date: "April 2022"
+output: 
+  html_document:
+    toc: yes
+    toc_float: yes
 editor_options: 
   chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, echo = FALSE, message=FALSE)
 ```
 
-The aim of this file is to extrapolate fishing effort between 1850 and 1950 for model spin up. 
+The **AIM** of this file is to extrapolate fishing effort between 1850 and 1950 for model spin up.  
 
-Input files: effort_histsoc_1950_2010.csv from Yannick Rousseau for fishing effort, temp_data_from_FishingEffort_Rpj_07script_update.RData for catch data including both recent (after 1950) and historical (before 1950) data from Reg Watson's database. 
-Function for effort extrapolation: Effort_extrapolate() 
-Outputs: plot_relative (plot of catch and effort relative to 1950), plot_absolute (plot of absolute catch adn effort), final_relative (dataset of catch and effort relative to 1950 and used for plot_relative), and final_absolute (dataset of absolute catch and effort and used for plot_absolute). 
+The **METHOD** follows two steps:   
 
-We extrapolated effort between 1850 and 1950 for each LME. We followed two paths depending on which data was available: 
+1. We extrapolated effort between 1850 and 1950 for each LME. We followed two paths depending on which data was available:   
 
-1. We used catch time series to extrapolate effort backwards if there were at least 10 years of catch data before 1950. We fit a GAM on the catch data and thus modeled catch as a spline-based smooth function of year, assuming a Gaussian distribution of data, a log link function, and a k argument of 6. The k argument sets the dimensionality of the smoothing matrix for the parameter year, with a lower k resulting in a smoother fitted spline. We used the GAM to predict catch backwards, between 1850 and 1950. We looked at observed and predicted values and corrected for unexpected patterns. This meant we identified the pick in the catch time series, excluded data collected afterwards, and fit the GAM again. By using the ascendant part of the catch data only we obtained a better statistical fit, with predicted catches following the assumed sigmoid (Gaussian? Logistic?) distribution in most cases - i.e. smooth increase until the pick is reached. We also excluded data collected during WWI and WWII (1914-1918 and 1939-1945) because these data showed lower values and lead to oscillations in the distribution of predicted catches. Removing war years meant that the effect of war on catches is not captured in our reconstruction. While this might be a limitation, the aim of the spin-up is to help models reach equilibrium before the 1950 rather than to capture complex dynamics. In addition, we lowered k if, for example, predicted catches showed oscillations. This reconstruction method is broadly consistent with the method Rousseau et al. (2019; in prep) used to reconstruct effort between 1950 and 2010. Last, we calculated the rate of change of the predicted catch between 1951 and 1850 relative to 1950, we applied this rate of change to the effort data to extend our fishing effort time series to 1850.  
+    a. If there were at least 10 years of catch data before 1950, **we used catch time series** to extrapolate effort backwards. We fit a GAM on the catch data and thus modeled catch as a spline-based smooth function of year, assuming a Gaussian distribution of data, a log link function, and a k argument of 6. The k argument sets the dimensionality of the smoothing matrix for the parameter year, with lower k resulting in smoother fitted spline. We used this model to predict catch backwards, between 1850 and 1950. We looked at observed and predicted values and corrected for unexpected patterns. This meant trimming the catch data, adjusting the k argument if needed, and re-fitting the GAM. Specifically, we identified the pick in the catch time series and excluded data collected afterwards. This was because we assumed the catch time series followed a sigmoid (Gaussian? Logistic?) function, with a smooth increase in catch until the pick is reached, and considering the ascendant part of the catch time series only resulted in a better statistical fit. We also excluded data collected during WWI and WWII (1914-1918 and 1939-1945) because these data showed lower values and lead to oscillations in the distribution of predicted catches. In addition, we lowered k if, for example, predicted catches showed oscillations. Last, we calculated the rate of change of the predicted catch between 1951 and 1850 relative to 1950, we applied this rate of change to the effort data to extend the fishing effort time series to 1850.    
 
-2. We used effort time series extending from 1950 to 2010 to extrapolate effort backwards if there were not at least 10 years of catch data before 1950. Similar to the approach used when we considered catch time series, we fit a GAM to the effort data, modeled effort as a spline-based smooth function of year, and used this model to predict effort between 1850 and 1950. Assumptions, data adjustments and functions argument used in this process were the same as the one used to model the catch data.
+    b. If there were not at least 10 years of catch data before 1950, we **used effort time series** from 1950 to 2010 to extrapolate effort backwards. Similar to the approach used when we considered catch time series, we fit a GAM to the effort data, modeled effort as a spline-based smooth function of year, and used this model to predict effort between 1850 and 1950. Assumptions, data adjustments and functions argument used in this process were the same as the one used to model the catch data.  
 
-Plot_absolute shows (A) trends in catches, and (B) trend in effort for each LME. Predictions from the GAM model are shown as a fitted line on either catch effort depending on the approach used. The shape of the dots refer to whether these data was used in the prediction or not (i.e. data collected after the pick in catches or during war years as not considered for the GAM model)        
+    Removing war years meant that the effect of war on catches and effort is not captured in our reconstruction. While this might be a limitation, the aim of the spin-up is to help models reach equilibrium before the 1950 rather than to capture complex dynamics. The reconstruction method described above is broadly consistent with the method Rousseau et al. (2019; in prep) used to reconstruct effort between 1950 and 2017.  
 
-Once we obtained an effort time series extending from 1850 to 2010 for each LME, we used the percentage contribution of effort by eez, fishing country, gear, fishing group, Sector between 1950 and 1960 to split effort across these groups.  
+2. Once we obtained an effort time series extending from 1850 to 2010 for each LME, we used the contribution of effort by EEZ, fishing country, gear, functional group, and sector in 1950 to allocate effort across these groups.    
 
-*ALTERNATIVE* 
-Firstly, we found the pick in the time series and excluded data collected afterwards as well as data collected during the WWI and WWII (1914-1918 and 1939-1945). This was because we assumed that the catch data follows a Sigmoid (Gaussian? Logistic?) distribution - it smoothly increases until it reaches a pick - and obtained a better statistical fit (see GAM below) when using only the ascendant part of the catch data. It was also because data collected during war times shows lower values and this led to oscillations in the distribution of predicted catches. Secondly, we fit a GAM to the remaining data and thus modeled catch as a spline-based smooth function of year, assuming a Gaussian distribution of data, a log link function, and a k argument of 6. The k argument sets the dimensionality of the smoothing matrix for the parameter year, with lower k resulting in smoother fitted spline. We used the GAM to predict catch backwards, between 1850 and 1950. We lowered k and fitted the GAM again when the fitted spline was not smooth enough and resulted in either higher catch in 1850 compared to 1950 OR ... (ADD OPTIONS AS PER BELOW). This method is consistent with the effort reconstruction between 1950 and 2010 by Rousseau et al. (2019; in prep). As we removed war years, the effect of war on effort is not captured in our reconstruction. This is a limitation, however the aim of the spin-up is not to capture complex dynamics but to help models reach equilibrium before the 1950. Thirdly, we calculated the rate of change of the predicted catch between 1951 and 1850 relative to 1950, we applied this rate of change to the effort data to extend our fishing effort time series to 1850. 
+**Input files:**.  
 
-*COMMENTS:* 
-1. I could have considered country data following Yannick's suggestion as these data is the "raw data" before effort was allocated to gears etc. and mapped. Also fishing effort at country level could be compared to Yannick’s reconstructed data 1850-1950, but these data is not ready yet (so remove from gem48!) and better compared with Reg's historical catch data where catches are available only for some countries. 
-2. I need to repeat the above for gridded data - should you reconstruct global fishing effort dan use these data to allocate historical effort to each grid cell? 
+effort_histsoc_1950_2017.csv from Yannick Rousseau. 
 
-*NOTES from Yannick & Reg*
-1. Yannick: In effort, delete EEZ_unknown - used to make things working, should not include much effort and it refers to all the unknown fishing trips in Yannick's dataset 
-2. Yannick & Reg: There will be mismatches between effort and catch - eg. gears withing LMEs that have catch but no effort and vice versa. About 70% compatibility between the 2 datasets. Mismatches are due to the different way in which the 2 datasets were built: Yannick starts from gear to reconstruct effort (e.g. 30 trawlers in fleet), while Reg does not have info on gear so assumes gear based on limited knowledge (e.g most tuna are caught by purse seine) -> effort by gear and fishing group might be different from catch by gear and fishing group. Yannick did some checking and matching when he built his effort dataset, but he did not reach the 100% match between effort and catch. Another reason for the mismatch is that Reg's data was built before Yannick's data adn hence follows different assumptions. There is an effort to connect the two - e.g. use Yannic's effort to base the catch reconstruction and vice versa but no outcome yet. IMPORTANT TO KNOW: the more you aggregate the less mismatch you get - modelers to deal with this, no solution.  
+temp_data_from_FishingEffort_Rpj_07script_update.RData for catch data including both historical (before 1950) and recent (after 1950) data from Reg Watson.  
 
-*NOTES from Yannick on spin-UP*
-5. TO DO: Calculate mean over e.g. 3 years before and 3 years after 1950 in terms of rate of change in catches, otherwise e.g. rate of change between 0.001 and 0.00001 is 100 but both values are close to 0 - this results in big bumps in effort when you apply the rate of change in catches to effort and if effort is not closed to 0.  
-6. DONE DIFFERENTLY: Remove from catches year 1914-18 and 39-45 as this was war - low values effect the gam - in Asia it should be 1931-45. After fitting the GAM, replace war values with real catch data for these year to translate cacth into effort otherwise there will be no war effect on effort.
+**Functions:**.  
 
-## Effort data 
+effort_extrapolate(). 
 
-```{r cars}
+effort_spread().  
+
+**OUTPUT:**.      
+
+1. **reconstructed_effort_for_spinup_totLME.pdf** shows (A) trends in catches, and (B) trend in effort for each LME. Predictions from the GAM model are shown as a fitted line on either catch or effort depending on the approach used (1 or 2 above). The shape of the dots refer to whether data was used in the prediction or not (e.g. data collected after the pick in catches or during war years was not considered when fitting the GAM).       
+
+2. **reconstructed_effort_for_spinup.pdf** shows trends in fishing effort by gear (taken as an effort grouping example) and hece the distribution of the constructed effort for spin-up (1850-1950) across these groups.  
+
+3. **effort_histsoc_1850_2010.csv** final spin-up and effort forcing data. 1850-1950 spin-up (extrapolated), 1950-1961 transition, 1961-2010 simulation.     
+
+*COMMENTS:*.  
+
+1. Can consider country data following Yannick's suggestion. But LME-level is easier to control adn adjust. Note, historical catch data only available for some/few countries, might underestimate catches when aggregating at LME.    
+
+2. Need to repeat the above for gridded data - should we reconstruct global fishing effort and use these estimates to allocate historical effort to each grid cell based on contribution to grid cell in 1950?
+
+*NOTES from Yannick & Reg*. 
+
+1. Yannick: In effort, delete EEZ_unknown - used to make things working, should not include much effort and it refers to all the unknown fishing trips in Yannick's dataset.  
+
+2. Yannick & Reg: There will be mismatches between effort and catch - eg. gears withing LMEs that have catch but no effort and vice versa. About 70% compatibility between the 2 datasets. Mismatches are due to the different ways the 2 datasets were built: Yannick starts from gear to reconstruct effort (e.g. 30 trawlers in fleet) while Reg does not have info on gear so assumes gear based on limited knowledge (e.g most tuna are caught by purse seine) -> effort by gear and fishing group might be different from catch by fishing group. Yannick did some matching when building the effort dataset, but he did not reach the 100% match. There is an effort to connect the two - e.g. use Yannic's effort to base the catch reconstruction and vice versa but no outcome yet. IMPORTANT TO KNOW: the more you aggregate the less mismatch you get - modelers to deal with this, no solution.  
+
+3. Yannick, TO DO: Calculate mean over e.g. 3 years before and 3 years after 1950 in terms of rate of change in catches, otherwise e.g. rate of change between 0.001 and 0.00001 is 100 but both values are close to 0 - this results in big bumps in effort when you apply the rate of change in catches to effort if effort is not closed to 0.  
+
+4. Yannick, DONE DIFFERENTLY: Remove from catches war years (1914-18 and 39-45, and 1931-45 for Asia) as low values effect the GAM. After fitting the GAM, replace war values with real catch data for these year to translate catch into effort otherwise there will be no war effect on effort.    
+
+## Set environment 
+
+```{r environment}
 
 rm(list=ls())
 
@@ -50,675 +74,84 @@ library(tidyverse)
 library(dtplyr)
 library(tictoc)
 library(data.table)
+library(mgcv)
+library(gridExtra)
 
 select<-dplyr::select
 
-# effort - loading with fread means that you get a different class object and all operations become more complex as you neeed to keep transforming the data into data.table 
-effort<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2010.csv")
+```
+
+## Effort data 
+
+```{r effort}
+
+# effort<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2010.csv")
+effort<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017.csv")
 effort<-effort[,-1]
 
-```
-
-## Fit the GAM example - GLOBAL - can skip
-
-```{r gam, echo=FALSE}
-
-# # select Industrial as it is the one avaible for both effort and (historical?) catches, aggregate at SAUP level and pick a country to test the code
-saup<-read_csv("/rd/gem/private/users/yannickr/SAUPcode_to_Country.csv")
-# toKeep<-unique(filter(saup, Country %in% c("France", "Algeria"))$SAUP_Country_Nbr)
-# NEED TO PROVIDE THIS TO FISHMIP!!!!
-
-effort_extr<-effort %>%
-  # filter(Sector == "Industrial") %>%
-  # filter(SAUP %in% toKeep) %>%
-  group_by(Year) %>%
-  summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>%
-  ungroup()
-#
-# # Yannick's code use to extrapolate effort:
-# # library(gam)
-# # # gam_model<-gam(Total_FRA ~ s(Year,50),data=Data, family=gaussian(link="log"),se=TRUE)
-# # # Data$gam<-round(predict(gam_model,newdata = Data,type='response'))
-# # # plot(Data$Year,Data$Total_FRA,ylim=c(0,max(Data$Total_FRA,na.rm=T)*1.1))
-# # # par(new=T)
-# # # plot(Data$Year,Data$gam,col="red",type='l',ylim=c(0,max(Data$Total_FRA,na.rm=T)*1.1))
-#
-# # library(gam)
-# # gam_model<-gam(NomActive ~ s(Year),data=effort_extr, family=gaussian(link="log"),se=TRUE)
-# # effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
-# # plot(effort_extr$Year,effort_extr$NomActive,ylim=c(0,max(effort_extr$NomActive,na.rm=T)*1.1))
-# # par(new=T)
-# # plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
-
-# use other package
-library(mgcv)
-
-# apply gam on subset...
-# effort_extr<-filter(effort_extr, Year >1950, Year <1980)
-
-gam_model<-gam(NomActive ~ s(Year, k=5),data=effort_extr, family=gaussian(link="log"))
-# gam.check(gam_model)
-effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
-
-ylim = c(min(effort_extr$gam), max(effort_extr$gam))
-plot(effort_extr$Year,effort_extr$NomActive,  ylim=ylim)
-par(new=T)
-plot(effort_extr$Year,effort_extr$gam,col="red",type='l', ylim=ylim)
-
-# change GAM - not log link  and no k param and no s() - without s the gam is not based on spline but it becomes an lm 
-gam_model<-gam(NomActive ~ Year,data=effort_extr, family=gaussian)
-# gam.check(gam_model)
-effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
-
-ylim = c(min(effort_extr$gam), max(effort_extr$gam))
-plot(effort_extr$Year,effort_extr$NomActive,  ylim=ylim)
-par(new=T)
-plot(effort_extr$Year,effort_extr$gam,col="red",type='l', ylim=ylim)
-
-# predict backwords
-newd <- data.frame(Year = seq(1850, 2017))
-newd$pred <- predict.gam(gam_model,newd,type='response') # type='response' means you don't need to backtransform from log
-newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
-
-# all data
-effort_all<-effort_extr %>%
-  full_join(newd, by = "Year") 
-
-effort_all_plot<-effort_all %>%
-  gather("a","b",-Year) # %>% # WARNING TO CONSIDER
-
-ggplot(effort_all_plot,aes(x = Year, y = b, group = a, color = a))+
-  geom_line()
-
-### OR SHOULD ALSO DO BASED ON CATCH AS BELOW??? 
-
-
+# Remove Unknown_EEZ before printing the final file as per Yannick's comment 
+effort<-effort %>% 
+  filter(FGroup != "Unknown_EEZ")
 
 ```
 
-## Repeat using Yannic's extended data - only if NV - also these data not ready yet - to skip
-
-```{r}
-
-# # to consider: 
-# # only NV available, no NomActive 
-# # only few countries available
-# # total might include artisanal so not comparable with catches below 
-# 
-# extrapolated<-read_csv("/rd/gem/private/users/yannickr/Extrapolation_1800/France_Algeria.csv")
-# head(extrapolated)
-# 
-# ext<-extrapolated %>%
-#   group_by(Year) %>%
-#   summarise(Total_FRA = sum(Total_FRA, na.rm = TRUE)) %>%
-#   ungroup()
-# 
-# all3<-effort_all %>%
-#   full_join(ext)
-# 
-# ggplot(all3,aes(x = Year, y = Total_FRA))+
-#   geom_line()
-# 
-# head(all3)
-# 
-# all4<-all3 %>%
-#   gather("a","b",-Year)
-# # WARNING TO CONSIDER
-# 
-# ggplot(all4,aes(x = Year, y = b, group = a, color = a))+
-#   geom_line()
-
-```
-
-## Check with Reg's historical catch 
+## Catch data 
 
 ```{r catch}
 
-# catch ----
-# refer to 07_cacth_data.rmd for data origin
-load("/rd/gem/private/users/yannickr/temp_data_from_FishingEffort_Rpj_07script_update.RData")
+# refer to 07_cacth_data.rmd for data origin - need to change name
+# load("/rd/gem/private/users/yannickr/temp_data_from_FishingEffort_Rpj_07script_update.RData")
+# catch<-final_catch %>% 
+#   as.data.frame()
 
-# catchHist<-final_catch_hist
-catch<-final_catch %>% 
-  as.data.frame()
+# new name 
+catch<- read_csv("/rd/gem/private/users/yannickr/catch_histsoc_1869_2017.csv")
+head(catch)
 
-# sort(unique(final_catch$CNumber)) # NOTE: historical has a limited number of countries as per Reg's comment 
-# 
-# catchHist <- final_catch_hist %>% 
-#   filter(SAUP %in% toKeep) %>% 
-#   group_by(Year) %>% 
-#   summarise(catch = sum(catch, na.rm = TRUE))
-# 
-# head(catchHist)
-
-# calcualte catch as sum of reported and IUU, discards are genrally not considered - see Reg's comment
+# calculate catch as sum of reported and IUU, discards are generally not considered - see Reg's comment
 catch$catch_tot<-catch$Reported + catch$IUU
 
-
-
-# # can skyp as it's just about plotting the effort reconstructed from above with the cacth data 
-# 
-# catch_all<-catch %>% 
-#   filter(SAUP %in% toKeep) %>% 
-#   group_by(Year) %>% 
-#   summarise(catch = sum(catch, na.rm = TRUE))
-# 
-# head(catch_all)
-# 
-# # catch_all<-catchHist %>% 
-# #   full_join(catch)
-# 
-# # looks OK 
-# ggplot(catch_all, aes(x = Year, y=catch))+
-#   geom_point()
-# 
-# # merge all dataset calculate relative values to 1950 ---- 
-# final<-effort_all %>% 
-#   full_join(catch_all, by = "Year")
-# 
-# ref<-final %>% 
-#   filter(Year == 1950)
-# 
-# final<-final %>% 
-#   mutate(EffRelative = NomActive/ref$NomActive, # WARNING - do we still need to gam column? it should be gam applied to 1950-2010 
-#          PredRelative = pred/as.numeric(ref$pred), # WARNING - not sure why you need as.numeric here
-#          CatchRelative = catch/ref$catch) 
-# 
-# final2<-final %>% 
-#   dplyr::select(Year, EffRelative:CatchRelative) %>% 
-#   gather("Type", "Value", -Year)
-# # WARNING - check Warning!
-# 
-# ggplot(data = final2, aes(x = Year, y = Value, color=Type, shape=Type)) +
-#   geom_line(data = filter(final2, Type == "PredRelative") ) + 
-#   geom_point(data = filter(final2, Type %in% c("CatchRelative", "EffRelative")))+
-#   theme_bw()
-# 
-# # check using absolute and not relative values ----
-# final3<-final %>% 
-#   mutate(EffRelative = NomActive, 
-#          PredRelative = pred,
-#          CatchRelative = catch)
-# 
-# final3<-final3 %>% 
-#   dplyr::select(Year, EffRelative:CatchRelative) %>% 
-#   gather("Type", "Value", -Year)
-# # WARNING - check Warning!
-# 
-# ggplot(data = final3, aes(x = Year, y = Value, color=Type, shape=Type)) +
-#   geom_line(data = filter(final3, Type == "PredRelative") ) + 
-#   geom_point(data = filter(final3, Type %in% c("CatchRelative", "EffRelative")))+
-#   theme_bw()+
-#   facet_wrap(~Type, scales = "free", nrow = 3)
-
 ```
 
-# loop through data to get a broad picture of trends by country and the data you have - to skip, better version is the below 
+## Define plot theme 
 
-```{r loop}
+```{r theme}
 
-# saup<-read_csv("/rd/gem/private/users/yannickr/SAUPcode_to_Country.csv")
-# toKeep<-unique(filter(saup, Country %in% c("France", "Algeria"))$SAUP_Country_Nbr)
-# 
-# toKeep<-unique(saup$SAUP_Country_Nbr)
-# which(toKeep == 226)
-# title<-unique(saup$Country)
-# 
-# length(toKeep)
-# 
-# plot_relative<-list()
-# plot_absolute<-list()
-# plot_final_effort<-list()
-# final_effort_data<-list()
-# 
-# # for(i in 1:length(toKeep)){
-# for(i in 1:5){
-#   
-#   # i = 1 # 226 # 13 grenada - not working well
-#   filter(saup, SAUP_Country_Nbr == toKeep[[i]])
-#   
-#   effort_extr<-effort %>% 
-#     filter(Sector == "Industrial") %>% # WARNING: excluding artisanal changes the trend considerably. Industrial is the only sector in catches
-#     filter(SAUP %in% toKeep[[i]]) %>% 
-#     group_by(Year) %>% 
-#     summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
-#     ungroup()
-#   
-#   if(dim(effort_extr)[1] !=0){ # if empty ... don't run code ...
-#   
-#   # filter(effort_extr, Year >2010)  
-#     
-#   gam_model<-gam(NomActive ~ s(Year, k=5),data=effort_extr) # WARNING - if k>3 effort increases with decreased year - overfitting? for sure not what we want .. OPTION to set k = 10 as def and decrease by one uit each time if effort     1949<1950?? 
-#   # gam.check(gam_model)
-#   effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
-# 
-#   plot(effort_extr$Year,effort_extr$NomActive)
-#   par(new=T)
-#   plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
-# 
-#   # predict backwords 
-#   newd <- data.frame(Year = seq(1850, 2010)) # this effort is to 2010
-#   newd$pred <- predict.gam(gam_model,newd)
-#   newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
-#   
-#   # all data 
-#   effort_all<-effort_extr %>% 
-#     full_join(newd, by = "Year") 
-#   
-#   maxYear<-min(filter(effort_all, !is.na(NomActive))$Year) # last year of available effort estimates (NomActive)
-#   
-#   # if effort increases during extrapolation but decreases before extrapolation...  increase kappa
-#   # if effort 1940 > effort 1950 BUT effort at maxYear < effort at maxYear+10 -> re-run gam and change kappa 
-#   if (i == 226){n = 1}else{n=10} # avoid error when not enough years 
-#   if(filter(effort_all, Year == 1940)$pred > filter(effort_all, Year == 1950)$pred & filter(effort_all, Year == maxYear)$NomActive < filter(effort_all, Year == maxYear+n)$NomActive) {
-#       
-#     gam_model<-gam(NomActive ~ s(Year, k=10),data=effort_extr) 
-#     effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
-# 
-#     plot(effort_extr$Year,effort_extr$NomActive)
-#     par(new=T)
-#     plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
-#     
-#     # predict backwords 
-#     newd <- data.frame(Year = seq(1850, 2010)) # this effort is to 2010
-#     newd$pred <- predict.gam(gam_model,newd)
-#     newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
-#   
-#     # all data 
-#     effort_all<-effort_extr %>% 
-#       full_join(newd, by = "Year") 
-#   }
-#     
-#   # catchHist <- final_catch_hist %>% 
-#   #   filter(SAUP %in% toKeep[[i]]) %>% 
-#   #   group_by(Year) %>% 
-#   #   summarise(catch = sum(catch, na.rm = TRUE))
-#   
-#   catch_all <- catch %>% 
-#     filter(SAUP %in% toKeep[[i]]) %>% 
-#     group_by(Year) %>% 
-#     summarise(catch = sum(catch, na.rm = TRUE))
-# 
-#   # catch_all<-catchHist %>% 
-#   #   full_join(catch, by = c("Year", "catch"))
-# 
-#   # # looks OK 
-#   # ggplot(catch_all, aes(x = Year, y=catch))+
-#   #   geom_point()
-# 
-#   # merge all dataset calculate relative values to 1950 ---- 
-#   final<-effort_all %>% 
-#     full_join(catch_all, by = "Year")
-#   
-#   ref<-final %>% 
-#     filter(Year == 1950)
-# 
-#   final<-final %>% # WARNING - is this relative?
-#     mutate(EffRelative = NomActive/ref$NomActive, # WARNING - do we still need to gam column? it should be gam applied to 1950-2010 
-#            PredRelative = pred/as.numeric(ref$pred), # WARNING - not sure why you need as.numeric here
-#            CatchRelative = catch/ref$catch) 
-# 
-#   final2<-final %>% 
-#     dplyr::select(Year, EffRelative:CatchRelative) %>% 
-#     gather("Type", "Value", -Year)
-#   # WARNING - check Warning!
-# 
-#   plot<-ggplot(data = final2, aes(x = Year, y = Value, color=Type, shape=Type)) +
-#     geom_vline(xintercept = 1950, linetype = "dashed")+
-#     geom_line(data = filter(final2, Type == "PredRelative") ) + 
-#     geom_point(data = filter(final2, Type %in% c("CatchRelative", "EffRelative")))+
-#     ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))+
-#     theme_bw()
-#   
-#   plot_relative[[i]]<-plot
-#   names(plot_relative)[i]<-toKeep[i]
-# 
-#   final3<-final %>% 
-#     dplyr::select(Year, NomActive, pred, catch) %>% 
-#     gather("Type", "Value", -Year) %>% 
-#     mutate(group = ifelse(Type == "catch", "Catch", "Effort"))
-#   # WARNING - check Warning!
-#   
-#   (plot_all2<-ggplot(data = final3, aes(x = Year, y = Value, color=Type, shape=Type)) +
-#     geom_line(data = filter(final3, Type == "pred") ) + 
-#     geom_point(data = filter(final3, Type %in% c("catch", "NomActive")))+
-#     theme_bw()+
-#     ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))+
-#     facet_wrap(~group, scales = "free", nrow = 3)+
-#     theme(legend.position="none"))
-#   
-#   plot_absolute[[i]]<-plot_all2
-#   names(plot_absolute)[i]<-toKeep[i]
-# 
-#   # final dataset: 
-#   final_data<-final %>% 
-#     mutate(NomActive = ifelse(Year <= maxYear, pred, NomActive)) %>% 
-#     dplyr::select(-gam, -pred, -catch, -EffRelative, -PredRelative, -CatchRelative)
-#   
-#   final_effort_data[[i]]<-final_data
-#   names(final_effort_data)[i]<-toKeep[i]
-#   
-#   plot_all3<-ggplot(data = final_data, aes(x = Year, y = NomActive)) +
-#     geom_point()+
-#     theme_bw()+
-#     ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))
-#   
-#   plot_final_effort[[i]]<-plot_all3
-#   names(plot_final_effort)[i]<-toKeep[i]
-#   
-#   }
-# }
-# 
-# # check empty contry and remove gfrom the list 
-# plot_absolute<-plot_absolute[lapply(plot_absolute,length)>0]
-# 
-# length(plot_absolute)
-# 
-# library("gridExtra")
-# # 4 plot per page - all effort
-# ggsave("Output/Absolute_effort_spinup_kAdjusted_updatedData.pdf", marrangeGrob(grobs = plot_absolute, nrow=1, ncol=2), device = "pdf")
-# 
-# 
-# # WARNINNG - still problematic - 192, 188, 246, 250, 276, 589, 584,12, 368, 376, 840, 270, 740, 702, 484, 404, 
-
+my_theme<-theme_bw()+
+  theme(text = element_text(size = 10), # this should be overwritten by the below
+        plot.title = element_text(size = 10),
+        axis.title = element_text(size = 9),
+        axis.text = element_text(size = 8),
+        legend.title=element_text(size = 9), 
+        legend.text=element_text(size = 8),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.key.size = unit(0.1, "cm")) 
+  
 ```
 
-# try at LME level 
+## Extrapolate total effort by LME function
 
-```{r}
-
-# toKeep<-sort(unique(effort$LME))
-# 
-# plot_relative<-list()
-# plot_absolute<-list()
-# plot_final_effort<-list()
-# final_effort_data<-list()
-# 
-# 
-# for(i in 1:length(toKeep)){
-# # for(i in 1:5){
-#   # i = 5
-#   
-#   effort_extr<-effort %>% 
-#     filter(LME %in% toKeep[[i]]) %>% 
-#     group_by(Year) %>% 
-#     summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
-#     ungroup()
-# 
-#   catch_all <- catch %>% 
-#     filter(LME %in% toKeep[[i]]) %>% 
-#     group_by(Year) %>% 
-#     summarise(catch_tot = sum(catch_tot, na.rm = TRUE))
-#   
-#   ## IF ZERO ----
-#   if(dim(effort_extr)[1] !=0){ # if empty ... don't run code ...
-#   
-#   ## FIRST IF - if historical catch exist
-#   # fit gam on catch
-#   # calculate the rate of change in predicted values (as you'd need to go all the way back to 1850)
-#   # use the rate of change in catches to extend effort back to 1850
-#   if(dim(filter(catch_all, Year <1950))[1] !=0) {
-#   
-#     # apply gam on subset...
-#     maxCatch<-filter(catch_all, catch_tot == max(catch_all$catch_tot))
-#     toAddBack<-filter(catch_all, Year > maxCatch$Year)
-#     catch_all<-filter(catch_all, Year <= maxCatch$Year)
-#     
-#     # also filter war years: 1914-18 and 39-45
-#     year<-sort(unique(catch_all$Year))
-#     if (year[[1]]<=1914){
-#       war <- catch_all %>% 
-#         filter(Year %in% c(1914:1918), Year %in% c(1939:1945)) 
-#       warToRemove<-war$Year
-#     }else if (year[[1]]<=1939){
-#       war<- catch_all %>% 
-#         filter(Year %in% c(1939:1945)) 
-#       warToRemove<-war$Year
-#     }
-#     catch_all<-filter(catch_all, !Year %in% warToRemove)
-# 
-#     # fit the gam 
-#     gam_model<-gam(catch_tot ~ s(Year, k=6), data=catch_all, family=gaussian(link="log"))
-#     # gam.check(gam_model)
-#     catch_all$gam<-round(predict(gam_model,newdata = catch_all,type='response'))
-# 
-#     ylim = c(min(catch_all$gam), max(catch_all$gam))
-#     plot(catch_all$Year,catch_all$catch_tot,  ylim=ylim)
-#     par(new=T)
-#     plot(catch_all$Year,catch_all$gam,col="red",type='l', ylim=ylim)
-# 
-#     # predict backwords
-#     newd <- data.frame(Year = seq(1850, maxCatch$Year))
-#     newd$pred <- predict.gam(gam_model,newd,type='response') # type='response' means you don't need to backtransform from log
-#     newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
-# 
-#     # all data
-#     catch_all<-catch_all %>%
-#       full_join(newd, by = "Year") %>% 
-#       dplyr::select(-gam)
-# 
-#     catch_all_plot<-catch_all %>%
-#       gather("a","b",-Year) # %>% # WARNING TO CONSIDER
-# 
-#     ggplot(catch_all_plot,aes(x = Year, y = b, group = a, color = a))+
-#       geom_line()
-# 
-#     # calculate rate of change
-#     ref<-catch_all %>% 
-#       filter(Year == 1950)
-#     ref<-as.numeric(ref$pred)
-#   
-#     # re-add war years for calculation of effort (if these were available) - add them as pred, because pred <1950 is what you are basing your calculation on
-#     if (year[[1]]<=1914 | year[[1]]<=1939){
-#       # war<-war %>% rename(catch_war = catch)
-#       catch_all<-catch_all %>% 
-#         full_join(war %>% rename(catch_war = catch_tot), by = "Year") %>% 
-#         mutate(pred = case_when(!is.na(catch_war) ~ catch_war,
-#                                 is.na(catch_war) ~ pred))
-#     }
-#     
-#     rate_of_change<-catch_all %>% 
-#       arrange(Year) %>% 
-#       mutate(pred = as.numeric(pred)) %>% 
-#       mutate(rate = 100 * (pred - ref)/ref) %>% 
-#       mutate(Trial_back = ref + (rate/100)*ref) # you need to do this on effort ... apply this rate. 
-#   
-#     # check 
-#     # filter(rate_of_change, Year >= 1950, Year <= 1960)
-#   
-#     # extend effort back using rate of change in cacth 
-#     ref<-effort_extr %>% 
-#       filter(Year == 1950)
-#     ref<-as.numeric(ref$NomActive)
-#   
-#     effort_reconstruct<-effort_extr %>% 
-#       full_join(rate_of_change, by = "Year") %>% 
-#       mutate(NomActive_catch_based = case_when(Year >= 1950 ~ NomActive,
-#                                                Year < 1950 ~ ref + (rate/100)*ref))
-#   
-#     # # check - it seems working ...
-#     # ggplot(data = effort_reconstruct, aes(x = Year, y = NomActive_catch_based)) +
-#     #   geom_point()
-#     # ggplot(data = effort_reconstruct, aes(x = Year, y = pred)) +
-#     #   geom_point()
-#     
-#     effort_all<-effort_reconstruct %>% 
-#       dplyr::select(Year, NomActive_catch_based, pred) %>% 
-#       rename(NomActive = NomActive_catch_based) 
-#     
-#     # WARNING! should you add in the cut data???? i.e. war and after pick data??? YES!
-#     catch_all<-catch_all %>% 
-#       rename(pred_catch = pred)
-#     
-#     # if (year[[1]]<=1914 | year[[1]]<=1939){
-#     #   catch_all2<-catch_all %>% 
-#     #       full_join(war %>% rename(catch_war = catch_tot), by = "Year") %>% 
-#     #       mutate(catch_tot = case_when(!is.na(catch_war) ~ catch_war,
-#     #                                is.na(catch_war) ~ catch_tot))
-#     #   }
-#     
-#     # if (dim(toAddBack)[1]!=0){
-#     #   catch_all2<-catch_all2 %>% 
-#     #     full_join(toAddBack %>% rename(catch_add = catch_tot), by = "Year") %>% 
-#     #     mutate(catch_tot = case_when(!is.na(catch_add) ~ catch_add,
-#     #                              is.na(catch_add) ~ catch_tot))
-#     #   }
-#   
-#   }else{ # END FIRS IF # if historical catch does not exist, fit gam on effort 
-#     
-#     gam_model<-gam(NomActive ~ s(Year, k=6),data=effort_extr,family=gaussian(link="log")) 
-#     # gam.check(gam_model)
-#     effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
-# 
-#     plot(effort_extr$Year,effort_extr$NomActive)
-#     par(new=T)
-#     plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
-# 
-#     # predict backwords 
-#     newd <- data.frame(Year = seq(1850, 2010)) # this effort is to 2010
-#     newd$pred <- predict.gam(gam_model,newd)
-#     newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
-#   
-#     # all data 
-#     effort_all<-effort_extr %>% 
-#       full_join(newd, by = "Year") %>% 
-#       mutate(NomActive = case_when(Year >= 1950 ~ NomActive,
-#                                    Year < 1950 ~ pred)) %>% 
-#       dplyr::select(-gam)
-#     
-#     maxYear<-min(filter(effort_all, !is.na(NomActive))$Year) # last year of available effort estimates (NomActive)
-#   
-#     ## SECOND IF ---- not good idea - better to cut the data
-#     # if effort increases during extrapolation but decreases before extrapolation...  increase kappa
-#     # if effort 1940 > effort 1950 BUT effort at maxYear < effort at maxYear+10 -> re-run gam and change kappa 
-#     # if (i == 226){n = 1}else{n=10} # avoid error when not enough years 
-#     # if(filter(effort_all, Year == 1940)$pred > filter(effort_all, Year == 1950)$pred & filter(effort_all, Year == maxYear)$NomActive < filter(effort_all, Year == maxYear+n)$NomActive) {
-#     #   
-#     #   gam_model<-gam(NomActive ~ s(Year, k=10),data=effort_extr) 
-#     #   effort_extr$gam<-round(predict(gam_model,newdata = effort_extr,type='response'))
-#     # 
-#     #   plot(effort_extr$Year,effort_extr$NomActive)
-#     #   par(new=T)
-#     #   plot(effort_extr$Year,effort_extr$gam,col="red",type='l')
-#     # 
-#     #   # predict backwords 
-#     #   newd <- data.frame(Year = seq(1850, 2010)) # this effort is to 2010
-#     #   newd$pred <- predict.gam(gam_model,newd)
-#     #   newd$pred<-ifelse(newd$pred<=0, 0, newd$pred)
-#     # 
-#     #   # all data 
-#     #   effort_all<-effort_extr %>% 
-#     #     full_join(newd, by = "Year") %>% 
-#     #     mutate(NomActive = case_when(Year >= 1950 ~ NomActive,
-#     #                                Year < 1950 ~ pred)) %>% 
-#     #     dplyr::select(-gam)
-#     #   
-#     # } # END SECOND IF 
-#   } # END ELSE FIRST IF 
-#     
-#     ## FINAL STEP 
-#     
-#     maxYear<-min(filter(effort_all, !is.na(NomActive))$Year) # last year of available effort estimates (NomActive)
-#     
-#     # whatever is the effort_all ... 
-#       final<-effort_all %>% 
-#         full_join(catch_all, by = "Year")
-#   
-#       ref<-final %>% 
-#         filter(Year == 1950)
-# 
-#       final<-final %>% # WARNING - is this relative?
-#         mutate(EffRelative = NomActive/ref$NomActive, # WARNING - do we still need to gam column? it should be gam applied to 1950-2010 
-#                PredRelative = pred/as.numeric(ref$pred), # WARNING - not sure why you need as.numeric here
-#                CatchRelative = catch_tot/ref$catch_tot) 
-# 
-#     final2<-final %>% 
-#       dplyr::select(Year, EffRelative:CatchRelative) %>% 
-#       gather("Type", "Value", -Year)
-#   # WARNING - check Warning!
-# 
-#     plot<-ggplot(data = final2, aes(x = Year, y = Value, color=Type, shape=Type)) +
-#       geom_vline(xintercept = 1950, linetype = "dashed")+
-#       geom_line(data = filter(final2, Type == "PredRelative") ) + 
-#       geom_point(data = filter(final2, Type %in% c("CatchRelative", "EffRelative")))+
-#       # ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))+
-#       ggtitle(toKeep[[i]])+
-#       theme_bw()
-#   
-#     plot_relative[[i]]<-plot
-#     names(plot_relative)[i]<-toKeep[i]
-# 
-#     final3<-final %>% 
-#       dplyr::select(Year, NomActive, pred, catch_tot) %>% 
-#       gather("Type", "Value", -Year) %>% 
-#       mutate(group = ifelse(Type == "catch_tot", "Catch", "Effort"))
-#     # WARNING - check Warning!
-#   
-#     plot_all2<-ggplot(data = final3, aes(x = Year, y = Value, color=Type, shape=Type)) +
-#       geom_line(data = filter(final3, Type == "pred") ) + 
-#       geom_point(data = filter(final3, Type %in% c("catch_tot", "NomActive")))+
-#       theme_bw()+
-#       # ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))+
-#       ggtitle(toKeep[[i]])+
-#       facet_wrap(~group, scales = "free", nrow = 3)+
-#       theme(legend.position="none")
-#   
-#     plot_absolute[[i]]<-plot_all2
-#     names(plot_absolute)[i]<-toKeep[i]
-# 
-#     # final dataset: 
-#     final_data<-final %>% 
-#       mutate(NomActive = ifelse(Year <= maxYear, pred, NomActive)) %>% 
-#       dplyr::select(-pred, -catch_tot, -EffRelative, -PredRelative, -CatchRelative)
-#   
-#     final_effort_data[[i]]<-final_data
-#     names(final_effort_data)[i]<-toKeep[i]
-#   
-#     # plot_all3<-ggplot(data = final_data, aes(x = Year, y = NomActive)) +
-#     #   geom_point()+
-#     #   theme_bw()+
-#     #   ggtitle(paste(toKeep[[i]], title[[i]], sep = " "))
-#     # 
-#     # plot_final_effort[[i]]<-plot_all3
-#     # names(plot_final_effort)[i]<-toKeep[i]
-#     
-#   } # END IF ZERO  
-# } # END LOOP    
-#   
-# # check empty contry and remove gfrom the list 
-# plot_absolute<-plot_absolute[lapply(plot_absolute,length)>0]
-# 
-# library("gridExtra")
-# # 4 plot per page - all effort
-# ggsave("Output/Absolute_effort_spinup_kAdjusted_LME2_updatedData.pdf", marrangeGrob(grobs = plot_absolute, nrow=1, ncol=2), device = "pdf")
-
-```
-
-
-# try to transform into function 
-
-
-```{r}
+```{r extrapolate}
 
 toKeep<-sort(unique(effort$LME))
-  
-Effort_extrapolate<-function(toKeep, kappa, war_param = "exclude", war_decision = "no-add"){
 
-  # toKeep = 0
-  # kappa = 6
-  # war_param = "exclude" # you predict without/without war years
-  # war_decision = "no-add" # you add/don't add back raw war years value and use them to extrapolate effort
-  # # # # 1. exclude war years and add them back when extrapolating effort war_param = "exclude", war_decision = "re-add"
-  # # 2. exclude war year and do not add them back when extrapolating effort. war_param = "exclude", war_decision != "re-add"
-  # # 3. do not exclude war years war_param != "exclude", war_decision != "re-add"
+effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   
+  # # trial - def
+  # toKeep=2
+  # kappa=6
+  # war_param = "exclude"
+  # war_decision = "no-add"
+  # reference = "1950"
+
   effort_extr<-effort %>% 
     filter(LME %in% toKeep) %>% 
     group_by(Year) %>% 
     summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
     ungroup()
 
-  maxYearEffort<-max(effort_extr$Year) # catch oest to 2017 whhile effort to 2010 (for the files you are considering right now - prodictions for effort need to go to 2010 otherwise you use catches to predict effort between 2010 and 2017 too)
+  maxYearEffort<-max(effort_extr$Year) 
   
   catch_all <- catch %>% 
     filter(LME %in% toKeep) %>% 
@@ -726,20 +159,17 @@ Effort_extrapolate<-function(toKeep, kappa, war_param = "exclude", war_decision 
     summarise(catch_tot = sum(catch_tot, na.rm = TRUE))
   
   ## IF ZERO ----
-  # # if empty dataset ... don't run code ...
-  if(dim(effort_extr)[1] !=0){ 
+  # if(dim(effort_extr)[1] !=0){ 
   
-  ## IF HISTORICAL catch exist
-  # fit gam on catch
-  # calculate the rate of change in predicted values (as you need to go back to 1850)
-  # use the rate of change in catches to extend effort back to 1850
-  # if(dim(filter(catch_all, Year <1950))[1] !=0) {
-  if(dim(filter(catch_all, Year <1950))[1] >=10) { # set limit - if 10 or more years of historical catch... 
+  ## IF HISTORICAL catch exist ----
+  if(dim(filter(catch_all, Year <1950))[1] >=10) {  
     df = catch_all
     var = "catch_tot" 
+    chechDataUsed = "catch"
   }else{
       df = effort_extr
       var = "NomActive"
+      chechDataUsed = "effort"
       }
   
   # find the pick in data and filter out everything after the pick  
@@ -760,21 +190,22 @@ Effort_extrapolate<-function(toKeep, kappa, war_param = "exclude", war_decision 
       warToRemove<-war$Year
     }
 
-  # WARNING - does this cover all options??? 
-  if(year[[1]]<=1918 | year[[1]]<=1945 & war_param == "exclude"){df<-filter(df, !Year %in% warToRemove)}
+  # WARNING - does this cover all options? 
+  if(year[[1]]<=1918 | year[[1]]<=1945 & war_param == "exclude"){
+    df<-filter(df, !Year %in% warToRemove)
+    }
     
   # fit the gam 
   gam_model<-gam(eval(as.name(var)) ~ s(Year, k=kappa), data=df, family=gaussian(link="log"))
-  # gam.check(gam_model)
   df$gam<-round(predict(gam_model,newdata = df,type='response'))
 
-  # check the gam
-  ylim = c(min(df$gam), max(df$gam))
-  plot(df$Year,df[[var]],  ylim=ylim)
-  par(new=T)
-  plot(df$Year,df$gam,col="red",type='l', ylim=ylim)
+  # # check the gam
+  # ylim = c(min(df$gam), max(df$gam))
+  # plot(df$Year,df[[var]],  ylim=ylim)
+  # par(new=T)
+  # plot(df$Year,df$gam,col="red",type='l', ylim=ylim)
 
-  # predict backwords
+  # predict backwards
   newd <- data.frame(Year = seq(1850, maxVar$Year))
   newd$pred <- predict.gam(gam_model,newd,type='response') 
   newd$pred <- ifelse(newd$pred<=0, 0, newd$pred)
@@ -783,18 +214,23 @@ Effort_extrapolate<-function(toKeep, kappa, war_param = "exclude", war_decision 
   df<-df %>%
     full_join(newd, by = "Year") %>% 
     dplyr::select(-gam)
-  
-  # ggplot(df, aes(x=Year, y=pred))+
-  #   geom_point()
     
   if(var == "catch_tot"){
+    
     # 1. calculate rate of change
-    ref<-df %>% 
-      filter(Year == 1950)
-    ref<-as.numeric(ref$pred)
-      
-    # 2. re-add war years for calculation of effort (if these were available). 1. add them to pred, because pred <1950 is what you are basing your calculation of effort on. 2. add them to catch to rebuild the dataset (see below for step 2). 
-    # NOTE: war_param = "exclude" by def otherwise these years are already there and predictions are based on them too. 
+    
+    if(reference == "1950"){
+      ref<-df %>% 
+        filter(Year == 1950)
+      ref<-as.numeric(ref$pred)
+    }else{
+      # 1B. calculate rate of change based on mean 1945-1955 years 
+      ref<-df %>% 
+        filter(Year >= 1945, Year <= 1955)
+      ref<-as.numeric(mean(ref$pred, na.rm = TRUE))
+    }
+    
+    # re-add war years for calculation of effort (if these were available). Add them to pred, because pred <1950 is what you are basing your calculation of effort on.
     if(war_param == "exclude" & war_decision == "re-add"){
       
     if (year[[1]]<=1914 | year[[1]]<=1939){
@@ -806,31 +242,38 @@ Effort_extrapolate<-function(toKeep, kappa, war_param = "exclude", war_decision 
     }
     }
       
-    # now you can calculate the rate of change... 
     rate_of_change<-df %>% 
       arrange(Year) %>% 
       mutate(pred = as.numeric(pred)) %>% 
       mutate(rate = 100 * (pred - ref)/ref) %>% 
-      mutate(Trial_back = ref + (rate/100)*ref) # you need to do this on effort ... apply this rate. 
+      mutate(Trial_back = ref + (rate/100)*ref) # only to check  
   
     # check 
-    filter(rate_of_change, Year >= 1950, Year <= 1960)
+    # filter(rate_of_change, Year >= 1950, Year <= 1960)
 
-    # extend effort back using rate of change in catch 
-    ref<-effort_extr %>% 
-      filter(Year == 1950)
-    ref<-as.numeric(ref$NomActive)
+    # 2. extend effort back using rate of change in catch 
+    
+    if(reference == "1950"){
+      ref<-effort_extr %>% 
+        filter(Year == 1950)
+      ref<-as.numeric(ref$NomActive)
+    }else{
+      # 2B. extend effort back using rate of change in catch using decadal mean 
+      ref<-effort_extr %>% 
+        filter(Year >= 1945, Year <=1955)
+      ref<-as.numeric(mean(ref$NomActive, na.rm = TRUE))
+    }
   
     effort_reconstruct<-effort_extr %>% 
       full_join(rate_of_change, by = "Year") %>% 
       mutate(NomActive_catch_based = case_when(Year >= 1950 ~ NomActive,
                                                  Year < 1950 ~ ref + (rate/100)*ref))
     
-    # check if this is working
-    ggplot(data = effort_reconstruct, aes(x = Year, y = NomActive_catch_based)) +
-      geom_point()
-    ggplot(data = effort_reconstruct, aes(x = Year, y = pred)) +
-      geom_point()
+    # check
+    # ggplot(data = effort_reconstruct, aes(x = Year, y = NomActive_catch_based)) +
+    #   geom_point()
+    # ggplot(data = effort_reconstruct, aes(x = Year, y = pred)) +
+    #   geom_point()
 
     # build effort_all
     effort_all<-effort_reconstruct %>% 
@@ -838,23 +281,22 @@ Effort_extrapolate<-function(toKeep, kappa, war_param = "exclude", war_decision 
       rename(NomActive = NomActive_catch_based) 
     
     # consider only recent years that are in effort and not in catch 
-    # unique(effort_all$Year)
     effort_all<-effort_all %>% 
       filter(Year <= maxYearEffort)
     
     }else{ # END var = cacth_tot; beginning of var = NomActive 
       
-      # build effort based on gam on effort. You cannot call it effort_all yet as you ned to work on df below 
+      # build effort based on gam on effort. 
       df<-df %>% 
         mutate(NomActive = ifelse(Year <= 1950, pred, NomActive)) 
+      
       } # end difference between var 
         
-    # FINAL STEPS 
+    # FINAL STEPS ----
     
-    # 1. add missing dates bits 
+    # 1. add missing data 
     
     # add back war time in raw catches
-    ### WARNING - as.name(var) gives problems, replaced with if statement
     if (year[[1]]<=1918 | year[[1]]<=1945){
       df<-df %>% 
       full_join(war %>% rename(var_war = as.name(var)), by = "Year")
@@ -864,225 +306,352 @@ Effort_extrapolate<-function(toKeep, kappa, war_param = "exclude", war_decision 
           mutate(catch_tot = case_when(!is.na(var_war) ~ var_war,
                                        is.na(var_war) ~ eval(as.name(var)))) %>% 
           select(-var_war)
-      }else{ # NOT SURE THSI else exist as there is no df = effort that goes back to before 1950
+      }else{ 
+        # is this needed? 
         df<-df %>% 
           mutate(NomActive = case_when(!is.na(var_war) ~ var_war,
                                        is.na(var_war) ~ eval(as.name(var)))) %>% 
           select(-var_war)
         
       }
-      
       }
     
     # add back data after pick in both catches and effort
     if (dim(toAddBack)[1]!=0){
       df<-df %>% 
-        full_join(toAddBack) # this should be by = c("Year", "catch_tot") or by = c("Year", "NomActive")
+        full_join(toAddBack) 
       }
     
+    # define df as either cacth_all or effort_all
     if(var == "catch_tot"){
-      # define df as either cacth_all or effort_all
       catch_all<-df
     }else{
       effort_all<-df
     }
     
     # 2. merge and plot 
-    final<-effort_all %>% 
+    final_df<-effort_all %>% 
       full_join(catch_all, by = "Year")
-  
-    # # these is where effort NA for years >2010 gets added back in ... 
-    # unique(effort_all$Year)
-    # unique(catch_all$Year)
-    # unique(final$Year)
     
     # # relative to 1950
     # # WARNING CHECK THIS - not sure we need it 
-    # ref<-final %>% 
+    # ref<-final_df %>% 
     #   filter(Year == 1950)
     # 
-    # # same output as below in terms of trends 
-    # # final_relative<-final %>%
-    # #   mutate(EffRelative = NomActive/ref$NomActive,
-    # #          PredRelative = pred/as.numeric(ref$pred), # WARNING - not sure why you need as.numeric here
-    # #          CatchRelative = catch_tot/ref$catch_tot)
-    # 
-    # final_relative<-final %>% 
+    # final_relative<-final_df %>% 
     #   mutate(EffRelative = (NomActive-ref$NomActive)/ref$NomActive, 
-    #          PredRelative = (pred-as.numeric(ref$pred))/as.numeric(ref$pred), # WARNING - not sure why you need as.numeric here
+    #          PredRelative = (pred-as.numeric(ref$pred))/as.numeric(ref$pred),
     #          CatchRelative = (catch_tot-ref$catch_tot)/ref$catch_tot) 
     # 
-    # # WARNING - check Warning!
     # final_relative<-final_relative %>% 
     #   dplyr::select(Year, EffRelative:CatchRelative) %>% 
     #   gather("Type", "Value", -Year)
-    # 
-    # plot_relative<-ggplot(data = final_relative, aes(x = Year, y = Value, color=Type, shape=Type)) +
-    #   geom_vline(xintercept = 1950, linetype = "dashed")+
-    #   geom_line(data = filter(final_relative, Type == "PredRelative") ) + 
-    #   geom_point(data = filter(final_relative, Type %in% c("CatchRelative", "EffRelative")))+
-    #   ggtitle(paste("LME", toKeep, sep = " "))+
-    #   theme_bw()
 
-    final_absolute<-final %>% 
-      # dplyr::select(Year, NomActive, pred, catch_tot) %>% 
-      gather("Type", "Value", -Year) #%>% 
-      # mutate(group = ifelse(Type == "catch", "Catch", "Effort"))
     # WARNING - check Warning!
+    final_df<-final_df %>% 
+      gather("Type", "Value", -Year) 
   
-    # grouping for plot below 
+    # grouping for plot below - these are the titles of the two stacked plots 
     if(var == "catch_tot"){
-      final_absolute<-final_absolute %>% 
-        mutate(group = ifelse(Type == "NomActive", "Effort", "Catch") )
+      final_df<-final_df %>% 
+        mutate(group = ifelse(Type == "NomActive", "Effort (nominal, DkW)", "Catch (tonnes)") )
       
     }else(
-      final_absolute<-final_absolute %>% 
-        mutate(group = ifelse(Type == "catch_tot", "Catch", "Effort") )
+      final_df<-final_df %>% 
+        mutate(group = ifelse(Type == "catch_tot", "Catch (tonnes)", "Effort (nominal, DkW)") )
     )
     
-    # highlight data that was not used in the projection if you've used catch and deleted war and years after the pick  
-    # if there was historical data, it was excluded for the gam fitted and not re-included as pred, then say it was unused 
+    # highlight data that was not used in GAM
     if(dim(filter(catch_all, Year <1950))[1] >=10 & war_param == "exclude" & war_decision != "re-add") { 
-      final_absolute <-final_absolute %>% 
-        mutate(usage = ifelse(Year %in% c(1914:1918, 1939:1945), "unused", "used"))
-    }else{ # WARNING - need another if here? 
-      final_absolute <-final_absolute %>% 
-        mutate(usage = "used")
+      final_df <-final_df %>% 
+        mutate(Considered = ifelse(Year %in% c(1914:1918, 1939:1945), "No", "Yes"))
+    }else{ 
+      # WARNING - need another if? 
+      final_df <-final_df %>% 
+        mutate(Considered = "Yes")
     }
     
     if(dim(toAddBack)[1]!=0){
-      final_absolute <-final_absolute %>% 
-        mutate(usage = ifelse(Year > maxVar$Year, "unused", usage))
+      final_df <-final_df %>% 
+        mutate(Considered = ifelse(Year > maxVar$Year, "No", Considered))
     }
     
-    # WARNING pred and pred_cacth might be a problem
-    plot_absolute<-ggplot(data = final_absolute, aes(x = Year, y = Value, group = Type, color = Type, shape=usage)) +
-      geom_line(data = filter(final_absolute, Type == "pred") ) +
-      geom_point(data = filter(final_absolute, Type %in% c("catch_tot", "NomActive")))+
-      # geom_line()+
-      theme_bw()+
+    final_df_plot<-final_df %>% 
+      rename(Data = Type) %>% 
+      mutate(Data = ifelse(Data == "pred", "GAM predictions", "Reconstructed values"),
+             Considered = as.factor(Considered))
+    
+    # make yes always a dot and no always a square even if only dots are present in the plot 
+    scale_fill_chris <- function(...){
+    ggplot2:::manual_scale(
+        'shape', 
+        values = setNames(c(16,15), c("Yes", "No")), 
+        ...
+    )
+    }
+    
+    # create data for annotation 
+    yMax = max(filter(final_df, Type == "catch_tot")$Value, na.rm = TRUE)
+    
+    ann_text <- data.frame(Year = c(1850+5,1950+2,1961+15,2010+5), Value = rep(yMax,4), lab = c("Spin-up","Transition","Experiment", "Validation"), group = rep("Catch (tonnes)", 4), Data = rep("Reconstructed values", 4), Considered = rep("Yes", 4))
+    
+    plot<-ggplot(data = final_df_plot, aes(x = Year, y = Value, group = Data, color = Data, shape=Considered)) +
       ggtitle(paste("LME", toKeep, sep = " "))+
-      facet_wrap(~group, scales = "free", nrow = 2)
-      # theme(legend.position="none")
-
-    # WARNING NEED TO ADJUST THE FINAL DATA FORMAT 
+      facet_wrap(~group, scales = "free", nrow = 2)+
+      annotate("rect",xmin=1850, xmax=1950, ymin=0, ymax=Inf, fill = "#edf8fb", alpha = 0.4)+ # spin-up
+      annotate("rect",xmin=1950, xmax=1961, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # transition
+      annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # projection 
+      annotate("rect",xmin=2010, xmax=2017, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # validation
+      geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
+      geom_point(data = filter(final_df_plot, Data == "Reconstructed values"),size=1)+
+      geom_line(data = filter(final_df_plot, Data == "GAM predictions")) +
+      scale_color_manual(values = c("blue", "black"), drop = FALSE)+
+      scale_fill_chris()+
+      my_theme
     
-    ## save outputs 
-    return(list(plot_absolute = plot_absolute, final_absolute = final_absolute)) # plot_relative = plot_relative, final_relative = final_relative,
+    if(var == "catch_tot"){ # different reference year are only relevent when effort reconstruction is based on catches  
+      if(reference == "1950"){
+        plot<-plot+
+          geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)
+      }else{
+        plot<-plot+
+          geom_vline(xintercept=1945, linetype="dashed", color = "red", size=0.5)+
+          geom_vline(xintercept=1955, linetype="dashed", color = "red", size=0.5)
+      }}
     
-  } # END if data exist 
+    #   }else{ # if effort reconstruction is based on effort it is simply a continuous of predictions ... so the 1950 is not really needed
+    #   plot<-plot+
+    #     geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)
+    # }
+    
+    # save outputs 
+    return(list(reconstructed_effort_LME = final_df, plot_reconstructed_effort_LME = plot, chechDataUsed = chechDataUsed)) 
+    
+  # } # END if data exist 
   
-}  # END FUNCTION
+} 
 
-#### loop through LME 
+```
 
-# 5 cacth + war + pick
-# 27 effort + pick 
+## Extrapolate total effort by LME loop
 
-# plot_relative<-list()
-plot_absolute<-list()
-# final_relative<-list()
-final_absolute<-list()
+```{r extrapolate loop, fig.width=10, fig.height=7}
 
-# fix kappas
+# first loop ----
+# this is with war and ref at 1950 (this only applies to catches)
 
+reconstructed_effort_LME_war<-list()
+plot_reconstructed_effort_LME_war<-list()
+chechDataUsed<-list()
+
+# fix the k argument in GAM (based on war_param = "include" and reference = 1950)
 kappa_values<-data.frame(lme = toKeep, kappa = 6)
-kappa_values[c(5, 19, 27, 56, 57)+1, 2]<-5
-kappa_values[c(8,13,29, 31)+1, 2]<-4
-kappa_values[c(11)+1, 2]<-3
+kappa_values[c(5, 13,19, 31,56, 57, 61)+1, 2]<-5
+kappa_values[c(8)+1, 2]<-4
 
 for(i in 1:length(toKeep)){
-# for(i in 1:2){
 
-  # i = 2
-  a<-Effort_extrapolate(toKeep[[i]], kappa = kappa_values[i,2], war_param = "exclude", war_decision = "no-add")
+  print(toKeep[[i]]) 
 
-  # plot_relative[[i]]<-a$plot_relative
-  # names(plot_relative)[i]<-toKeep[i]
-  plot_absolute[[i]]<-a$plot_absolute
-  names(plot_absolute)[i]<-toKeep[i]
-  # final_relative[[i]]<-a$final_relative
-  # names(final_relative)[i]<-toKeep[i]
-  final_absolute[[i]]<-a$final_absolute
-  names(final_absolute)[i]<-toKeep[i]
+  # yes war data when fitting GAM do not re-add original data as otherwise you overwrite predictions
+  b<-effort_extrapolate(toKeep[[i]], kappa = kappa_values[i,2], war_param = "include", war_decision = "no-add", reference = "1950")
 
+  reconstructed_effort_LME_war[[i]]<-b$reconstructed_effort_LME
+  names(reconstructed_effort_LME_war)[i]<-toKeep[i]
+
+  plot_reconstructed_effort_LME_war[[i]]<-b$plot_reconstructed_effort_LME
+  names(plot_reconstructed_effort_LME_war)[i]<-toKeep[i]
+
+  chechDataUsed[[i]]<-b$chechDataUsed
+  names(chechDataUsed)[i]<-toKeep[i]
+  
 }
 
-# ERROR at LME 57
-# Error in smooth.construct.tp.smooth.spec(object, dk$data, dk$knots) : 
-#   A term has fewer unique covariate combinations than specified maximum degrees of freedom
-# In addition: There were 50 or more warnings (use warnings() to see the first 50)
+# plot_reconstructed_effort_LME_war[[59]]
 
-# WARNINGS to CHECK - cannot find where! 
+# WARNINGS 
+
 # Warning message:
 # Step size truncated due to divergence
 # Warning messages:
 # 1: attributes are not identical across measure variables;
 # they will be dropped 
 
-# THINGS TO ADJUST (this was with war_param = "exclude", war_decision = "re-add") 
-# LME 5 - kappa = 5. flat effort = Warning message:Step size truncated due to divergence. 
-# LME 8 - kappa = 4 increasing effort. 
-# LME 11 - kappa = 3 but I don't understand this and I think it's linked to "Notes from Yannick n.5" 
-# LME 13 - kappa 4. LME 5 problem but also LME 11 problem. Also same comment as LME 11
-# LME 19 - kappa 5 
-# LME 27 - kappa 5 
-# LME 29 - kappa 4 (nont very bad at 6 neither)
-# LME 31 - kappa 4 (nont very bad at 6 neither) 
-# LME 40 - no kappa solution - BUT something sees wrong with war years and also possibly due to LME 11 problem 
-# LME 41 - same as 40
-# LME 56 - kappa 5
-# LME 57 - kappa 5. not enough data before the pick - BUT with kappa 5 OK - gam fittd on 5 dots (perhaps better kappa = 4)
-# LME 59 problematic for LME 11 reasons 
-# LME 64 no solution! 
+# second loop ----
+# this is with alternatives but considering only the LME where calculations are based on catches 
 
-# TO CONSIDER - 
-# 1. exclude war years and add them back when extrapolating effort war_param = "exclude", war_decision = "re-add"
-# 2. exclude war year and do not add them back when extrapolating effort. war_param = "exclude", war_decision != "re-add"
-# 3. do not exclude war years war_param != "exclude", war_decision != "re-add"
+toKeepCatch<-as.numeric(names(chechDataUsed[chechDataUsed == "catch"]))
 
-# # 1 # this is not great - drop changes in war years... 
-# one<-Effort_extrapolate(toKeep = 59, kappa = kappa_values[59+1, 2], war_param = "exclude", war_decision = "re-add")$plot_absolute
-# # 2 - this should be the best - we don't know when happened in war years so fit a smooth... 
-# two<-Effort_extrapolate(toKeep = 59, kappa = kappa_values[59+1, 2], war_param = "exclude", war_decision = "no-add")$plot_absolute
-# # 3 # this is not great - oscillations as war years are accounted for... 
-# three<-Effort_extrapolate(toKeep = 59, kappa = kappa_values[59+1, 2], war_param = "no-exclude", war_decision = "no-add")$plot_absolute
+reconstructed_effort_LME_catch<-list()
+plot_reconstructed_effort_LME_catch<-list()
 
-# check empty contry and remove gfrom the list 
-plot_absolute<-plot_absolute[lapply(plot_absolute,length)>0]
+reconstructed_effort_LME_war_catch<-list()
+plot_reconstructed_effort_LME_war_catch<-list()
 
-# library("gridExtra")
-# ggsave("Output/Absolute_effort_spinup_kAdjusted_LME2_updatedData_newMethods_noWar.pdf", marrangeGrob(grobs = plot_absolute, nrow=1, ncol=2), device = "pdf")
+reconstructed_effort_LME_war_original_catch<-list()
+plot_reconstructed_effort_LME_war_original_catch<-list()
 
-# ## global 
-# 
-# a<-Effort_extrapolate(toKeep, kappa = 6, war_param = "exclude", war_decision = "no-add")
-# 
-# plot_relative$global<-a$plot_relative
-# plot_absolute$global<-a$plot_absolute
-# final_relative$global<-a$final_relative
-# final_absolute$global<-a$final_absolute
+reconstructed_effort_LME_ref_catch<-list()
+plot_reconstructed_effort_LME_ref_catch<-list()
 
-# BETTER! still need to check 40, 41, 61 etc. but can ado ad-hoc adjustments
+for(i in 1:length(toKeepCatch)){
+  
+  print(toKeepCatch[[i]]) 
+  
+  # no war data when fitting GAM nor when calculating effort based on catch 
+  a<-effort_extrapolate(toKeepCatch[[i]], kappa = kappa_values[i,2], war_param = "exclude", war_decision = "no-add", reference = "1950")
 
-# Spread effort across combinations of LME - EEZ etc
+  reconstructed_effort_LME_catch[[i]]<-a$reconstructed_effort_LME
+  names(reconstructed_effort_LME_catch)[i]<-toKeepCatch[i]
+  
+  plot_reconstructed_effort_LME_catch[[i]]<-a$plot_reconstructed_effort_LME
+  names(plot_reconstructed_effort_LME_catch)[i]<-toKeepCatch[i]
 
-Effort_spread<-function(historical_effort, recent_effort){
+  # yes war data when fitting GAM do not re-add original data as otherwise you overwrite predictions
+  b<-effort_extrapolate(toKeepCatch[[i]], kappa = kappa_values[i,2], war_param = "include", war_decision = "no-add", reference = "1950")
+
+  reconstructed_effort_LME_war_catch[[i]]<-b$reconstructed_effort_LME
+  names(reconstructed_effort_LME_war_catch)[i]<-toKeepCatch[i]
+
+  plot_reconstructed_effort_LME_war_catch[[i]]<-b$plot_reconstructed_effort_LME
+  names(plot_reconstructed_effort_LME_war_catch)[i]<-toKeepCatch[i]
+
+  # no war data when fitting GAM, re-add original data when calcualting effort based on catch
+  c<-effort_extrapolate(toKeepCatch[[i]], kappa = kappa_values[i,2], war_param = "exclude", war_decision = "re-add",reference = "1950")
+
+  reconstructed_effort_LME_war_original_catch[[i]]<-c$reconstructed_effort_LME
+  names(reconstructed_effort_LME_war_original_catch)[i]<-toKeepCatch[i]
+
+  plot_reconstructed_effort_LME_war_original_catch[[i]]<-c$plot_reconstructed_effort_LME
+  names(plot_reconstructed_effort_LME_war_original_catch)[i]<-toKeepCatch[i]
+
+  # change the ref from 1950 to mean(1945-1955) to address higher bumps in effort than catches
+  d<-effort_extrapolate(toKeepCatch[[i]], kappa = kappa_values[i,2], war_param = "exclude", war_decision = "no-add", reference = "1945-1955")
+
+  reconstructed_effort_LME_ref_catch[[i]]<-d$reconstructed_effort_LME
+  names(reconstructed_effort_LME_ref_catch)[i]<-toKeepCatch[i]
+
+  plot_reconstructed_effort_LME_ref_catch[[i]]<-d$plot_reconstructed_effort_LME
+  names(plot_reconstructed_effort_LME_ref_catch)[i]<-toKeepCatch[i]
+  
+}
+
+# compare scenarios and decide ----
+
+# WAR decision
+combined_plot_war_list<-list()
+
+for(i in 1:length(plot_reconstructed_effort_LME_catch)){
+  
+  plot_reconstructed_effort_LME_catch[[i]]<-plot_reconstructed_effort_LME_catch[[i]]+
+    ggtitle(paste("LME", toKeepCatch[[i]], "no war", sep = " ")) +
+    theme(legend.position ="none")
+  
+  plot_reconstructed_effort_LME_war_catch[[i]]<-plot_reconstructed_effort_LME_war_catch[[i]]+
+    ggtitle(paste("LME", toKeepCatch[[i]], "war", sep = " ")) +
+    theme(legend.position ="none")
+  
+  plot_reconstructed_effort_LME_war_original_catch[[i]]<-plot_reconstructed_effort_LME_war_original_catch[[i]]+
+    ggtitle(paste("LME", toKeepCatch[[i]], "war original values", sep = " ")) +
+    theme(legend.position ="none")
+  
+  # better to combine plots like this otherwise 3 plots in 1 page are too big... 
+  combined_plot_war_list[[i]]<-list(plot_reconstructed_effort_LME_catch[[i]], plot_reconstructed_effort_LME_war_catch[[i]], plot_reconstructed_effort_LME_war_original_catch[[i]])
+  
+}
+
+combined_plot_war_list<-unlist(combined_plot_war_list, recursive=FALSE)
+
+pdf("Output/reconstructed_effort_for_spinup_totLME_warDecision2.pdf", height = 5, width = 7)
+for (i in 1:length(combined_plot_war_list)){
+  plot(combined_plot_war_list[[i]])
+}
+dev.off()
+
+# REFERENCE decision
+combined_plot_ref<-list()
+
+for(i in 1:length(plot_reconstructed_effort_LME_catch)){
+  
+  plot_reconstructed_effort_LME_ref_catch[[i]]<-plot_reconstructed_effort_LME_ref_catch[[i]]+
+    ggtitle(paste("LME", toKeep[[i]], "ref 1945-1955", sep = " "))+
+    theme(legend.position ="none")
+
+  combined_plot_ref[[i]]<-list(plot_reconstructed_effort_LME_catch[[i]], plot_reconstructed_effort_LME_ref_catch[[i]])
+  
+}
+
+combined_plot_ref<-unlist(combined_plot_ref, recursive=FALSE)
+
+pdf("Output/reconstructed_effort_for_spinup_totLME_refDecision2.pdf", height = 5, width = 7)
+for (i in 1:length(combined_plot_ref)){
+  plot(combined_plot_ref[[i]])
+}
+dev.off()
+
+# final loop after DECISION ----
+
+# if catch: include war, ref 1945-1955
+# if effort - it does not matter
+
+reconstructed_effort_LME_war_ref<-list()
+plot_reconstructed_effort_LME_war_ref<-list()
+
+for(i in 1:length(toKeep)){
+  
+  print(toKeep[[i]]) 
+
+  # yes war data when fitting GAM do not re-add original data as otherwise you overwrite predictions, reference mean over a decade
+  b<-effort_extrapolate(toKeep[[i]], kappa = kappa_values[i,2], war_param = "include", war_decision = "no-add", reference = "1945-1955")
+
+  reconstructed_effort_LME_war_ref[[i]]<-b$reconstructed_effort_LME
+  names(reconstructed_effort_LME_war_ref)[i]<-toKeep[i]
+
+  plot_reconstructed_effort_LME_war_ref[[i]]<-b$plot_reconstructed_effort_LME
+  names(plot_reconstructed_effort_LME_war_ref)[i]<-toKeep[i]
+  
+}
+
+# show north sea
+plot_reconstructed_effort_LME_war_ref[[22]]
+
+# save and print plots ----
+
+# check empty LME and remove from the list - it should be none
+plot_reconstructed_effort_LME_war_ref<-plot_reconstructed_effort_LME_war_ref[lapply(plot_reconstructed_effort_LME_war_ref,length)>0]
+
+ggsave("Output/reconstructed_effort_for_spinup_totLME2.pdf", marrangeGrob(grobs = plot_reconstructed_effort_LME_war_ref, nrow=1, ncol=2), device = "pdf")
+
+```
+
+## Allocate reconstructed effort across groups function
+
+```{r allocate}
+
+effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
   
   # # trial 
-  # historical_effort = final_absolute[[1]]
-  # recent_effort = filter(effort, LME == 0)
+  # toKeep = 1
+  # reference = "1950"
+  # historical_effort = reconstructed_effort_LME[[1]]
+  # recent_effort = recent_effort[[1]]
   
-  # calculate reference effort distribution across group using 1950-1960, if you use one year only you might miss important groups not represented in 1950 
-  recent_effortB<-recent_effort %>% 
-    # filter(Year >= 1950, Year <=1960) %>% # this should be the way to go but something strange happens here - compare plots. 
-    filter(Year == 1950) %>% 
-    group_by(eez_country_name,SAUP,Gear,FGroup,Sector, LME) %>% # LME is only to keep the LME name number and add it to the complete dataset
+  # calculate effort distribution across group using 1950-1960, if you use one year only you might miss important groups not represented in 1950 
+  if(reference == "1950"){
+    recent_effortB<-recent_effort %>% 
+      filter(Year == 1950)
+    }else{
+      recent_effortB<-recent_effort %>% 
+        filter(Year >= 1950, Year <=1960) # strange final plots
+    }
+  
+  recent_effortB<-recent_effortB %>% 
+    group_by(eez_country_name,SAUP,Gear,FGroup,Sector, LME) %>% 
     summarise(NomActive = mean(NomActive, na.rm = TRUE)) %>% 
     ungroup() %>% 
-    mutate(contribution = NomActive/sum(NomActive, na.rm = TRUE)) # calculate contribution in effort of each group based on mean contribution between 1950 and 1960
+    mutate(contribution = NomActive/sum(NomActive, na.rm = TRUE))
   
-  # check # should be 1 
+  # check
   # sum(recent_effortB$contribution, na.rm = TRUE)
   
   # create all combinations of groups and historical years 
@@ -1090,170 +659,181 @@ Effort_spread<-function(historical_effort, recent_effort){
   toExpend<-recent_effortB %>% 
     select(-NomActive) %>% 
     unique()
-  
-  # # which is faster? 
-  # tic()
-  # trial<-merge(toExpend, as.data.frame(Year)) # takes LONG!
-  # toc()
-  # 
-  # tic()
-  # trial<-do.call(rbind,lapply(1850:1949, function(x,d) data.frame(d, Year=x), d=toExpend))
-  # toc()
-  # 
-  # tic()
+
   toExpend<-rbindlist(lapply(1850:1949, function(x,d) data.frame(d, Year=x), d=toExpend))
   toExpend<-as_tibble(toExpend)
-  # toc()
-
-  # historical_effort<-lazy_dt(historical_effort)
-  # toExpend<-lazy_dt(toExpend)
-  # recent_effort<-lazy_dt(recent_effort)
   
   # get effort by year for 1850-1950
   historical_effort<-historical_effort %>% 
-    filter(Type == "NomActive") %>% # should I keep catches too just in case? 
-    select(-group, -usage) %>% 
+    filter(Type == "NomActive") %>% # Here can keep catches too 
+    select(-group, -Considered) %>% 
     spread(Type, Value) %>% 
-    filter(!is.na(NomActive)) %>% # catch data goes to 2017 but effort to 2010, there can be effort NAs   
+    filter(!is.na(NomActive)) %>% # catch data goes to 2017 but effort to 2010 - source of NAs 
     rename(NomActive_pred = NomActive) 
 
-  # merge info on historical effort by year and possible groups across which effort needs to be spread 
-  # and spread effort across these groups 
-  all<-filter(historical_effort, Year <1950) %>% 
-    full_join(toExpend) %>% # NA created here - need to filter historical_effort as it also includes recent years (complete time series by year and effort but missing all groups which you get from recent effort) 
+  # merge info on historical effort by year and groups 
+  final_df<-filter(historical_effort, Year <1950) %>% 
+    full_join(toExpend) %>% 
     mutate(NomActive = NomActive_pred*contribution) %>% 
     select(-NomActive_pred, -contribution)
   
-  # check - a should be = NomActive_pred
-  # trial<- all %>% filter(Year ==1850) %>% mutate(a = sum(NomActive))
+  # check - WARNING - not as expected for decadal 
+  trial<- final_df %>% filter(Year ==1850) %>% mutate(a = sum(NomActive))
 
-  # TAKES LONG - better with lazy_dt() WARNING - need checking 
-  tic()
-  all<- lazy_dt(all) %>% # Why does this have LME? 
+  # merge historical and recent effort
+  # WARNING - needs checking 
+  final_df<- lazy_dt(final_df) %>% 
     full_join(lazy_dt(recent_effort)) %>% 
     as.data.frame()
-  toc()
   
-  data_plot<-all %>%
+  data_plot<-final_df %>%
     group_by(Year, Gear) %>% 
     summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
     ungroup()
 
-  (plot_all<-ggplot(data_plot, aes(y = NomActive, x = Year, group = Gear, color = Gear))+
-    geom_line()+
-    theme_bw())
-  
-  return(list(all = all, plot_all = plot_all))
-  
+  # plot<-ggplot(data_plot, aes(y = NomActive, x = Year, group = Gear, color = Gear))+
+  #   geom_line()+
+  #   ggtitle(paste("LME", toKeep, sep = " ")) +# WARNING - check this is correct
+  #   my_theme
+
+  # create data for annotation 
+  yMax = max(data_plot$NomActive, na.rm = TRUE)
+    
+  ann_text <- data.frame(Year = c(1850+5,1950+2,1961+15,2010+5), NomActive = rep(yMax,4), lab = c("Spin-up","Transition","Experiment", "Validation"), Gear = rep(unique(data_plot$Gear)[1], 4))
+    
+  plot<-ggplot(data = data_plot, aes(x = Year, y = NomActive, group = Gear, color = Gear)) +
+    ggtitle(paste("LME", toKeep, sep = " "))+ # WARNING - check this is correct
+    annotate("rect",xmin=1850, xmax=1950, ymin=0, ymax=Inf, fill = "#edf8fb", alpha = 0.4)+ # spin-up
+    annotate("rect",xmin=1950, xmax=1961, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # transition
+    annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # projection 
+    annotate("rect",xmin=2010, xmax=2017, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # validation
+    geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
+    geom_line() +
+    geom_line() +
+    my_theme
+    
+  if(reference == "1950"){
+    plot<-plot+
+      geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)
+  }else{
+    plot<-plot+
+      geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)+
+      geom_vline(xintercept=1960, linetype="dashed", color = "red", size=0.5)
+  }
+    
+  return(list(final_df = final_df, plot = plot))
   
 }
 
+```
 
-## loop through LMEs - arrivata qui - TEST!
-recent_effort = split(effort, effort$LME) # takes long ... better below?
+## Allocate reconstructed effort across groups loop
+
+```{r allocate loop, fig.width=10, fig.height=7}
+
+# decide on version above: 
+decision<-reconstructed_effort_LME_war_ref
+
+# First loop ----
 
 toKeep<-sort(unique(effort$LME))
 
 reconstructed_effort<-list()
-reconstructed_effort_plot<-list()
+plot_reconstructed_effort<-list()
 
-# for(i in 1:length(final_absolute)){
-for(i in 1:5){  
+reconstructed_effort_ref<-list()
+plot_reconstructed_effort_ref<-list()
+
+
+for(i in 1:length(decision)){
+
+  recent_effort<-filter(effort, LME == toKeep [[i]])
   
-  # recent_effort<-filter(effort, LME = toKeep [[i]]) # this could be faster than the split above... 
-  # need to check that the 2 LMEs are the same - i.e. add LME column to final_absolute
-  a<-Effort_spread(final_absolute[[i]], recent_effort[[i]])
-  
-  reconstructed_effort[[i]] = a$all
+  # WARNING - need to check that LMEs are matching across datasets and with toKeep
+  a<-effort_spread(decision[[i]], recent_effort, toKeep[[i]], reference = "1950")
+
+  reconstructed_effort[[i]] = a$final_df
   names(reconstructed_effort)[i]<-toKeep[i]
-  reconstructed_effort_plot[[i]] = a$plot_all
-  names(reconstructed_effort_plot)[i]<-toKeep[i]
+  plot_reconstructed_effort[[i]] = a$plot
+  names(plot_reconstructed_effort)[i]<-toKeep[i]
+  
+  b<-effort_spread(decision[[i]], recent_effort, toKeep[[i]], reference = "1950-1960")
+  
+  reconstructed_effort_ref[[i]] = b$final_df
+  names(reconstructed_effort_ref)[i]<-toKeep[i]
+  plot_reconstructed_effort_ref[[i]] = b$plot
+  names(plot_reconstructed_effort_ref)[i]<-toKeep[i]
   
 }
 
+# compare scenarios and decide ----
 
-reconstructed_effort_plot[[5]]
+combined_plot<-list()
 
+for(i in 1:length(plot_reconstructed_effort)){
+  
+  # legend <- cowplot::get_legend(plot_reconstructed_effort_LME[[i]])
+  library(patchwork)
+  layout<-"
+  AA
+  BB"
+  combined_plot[[i]]<-plot_reconstructed_effort[[i]]+ plot_reconstructed_effort_ref[[i]] + plot_layout(design = layout)
+  
+}
 
-# this should be LME 0
-hist<-final_absolute[[1]]
-unique(hist$Year) 
+pdf("Output/reconstructed_effort_for_spinup_refDecision.pdf", height = 5, width = 7)
+for (i in 1:length(combined_plot)){
+  plot(combined_plot[[i]])
+}
+dev.off()
 
-recent<-filter(effort, LME == 0)
-head(hist)
-head(recent)
+# Decision ----
 
-# find out how effort in 1950 is spread across all groups 
-recent<-effort %>% 
-  filter(LME == 0, Year ==1950)
+# reference mean values 1950-1960
 
-ref<-sum(recent$NomActive, na.rm = TRUE)
+# reconstructed_effort_ref
+# plot_reconstructed_effort_ref
 
-recent$contribution<-recent$NomActive/ref
-# check 
-head(recent)
-sum(recent$contribution, na.rm = TRUE)
+# show North sea 
+plot_reconstructed_effort_ref[[22]]
 
-### create all combinations of groups and historical years 
-### PROBLEM - this is based on the groups that are in 1950 - need to based this on the groups that are in e.g all effort dataset or 10 years 
-toExpend<-recent %>% 
-  select(-Year, -NomActive, -NV, -P) %>% 
-  unique()
+# save final data and plots ----
 
-Year = seq(1850,1949)
-trial<-merge(toExpend, as.data.frame(Year))
+# check empty LME and remove from the list - it should be none
+plot_reconstructed_effort_ref<-plot_reconstructed_effort_ref[lapply(plot_reconstructed_effort_ref,length)>0]
 
-unique(trial$Year)
-# merge  trial 2 
+ggsave("Output/reconstructed_effort_for_spinup.pdf", marrangeGrob(grobs = plot_reconstructed_effort_ref, nrow=1, ncol=2), device = "pdf")
 
-hist2<-hist %>% 
-  filter(Type == "NomActive") %>% # should I keep catches too???  
-  select(-group, -usage) %>% 
-  spread(Type, Value) %>% 
-  rename(NomActive_pred = NomActive)
+# save data
+reconstructed_effort_ref<-do.call(rbind.data.frame, reconstructed_effort_ref)
 
-head(hist2)
-
-all<-hist2 %>% 
-  full_join(trial)
-
-head(all)
-
-all<-all %>% 
-  mutate(NomActive = NomActive_pred*contribution)
-
-# check - it sohould have worked 
-
-# all %>% filter(Year ==1850) %>% mutate(a = sum(NomActive))
-
-# clean adn add to effort 
-
-all<-all %>% 
-  select(-NomActive_pred, -contribution)
-
-all2<-all %>% 
-  full_join(filter(effort, LME == 0))
-
-head(all2) # WHAT SHOULD WE DO WITH NV AND P???? reconstruct them too?? 
-
-all2_plot<-all2 %>%
-  # mutate(group = paste(eez_country_name,SAUP,Gear,FGroup,Sector)) %>% 
-  group_by(Year, Gear) %>% 
-  summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
-  ungroup()
-
-ggplot(all2_plot, aes(y = NomActive, x = Year, group = Gear, color = Gear))+
-  geom_line()
-
-# WHY NAs!!!! 
-filter(trial, is.na(Gear))
-filter(recent, is.na(Gear))
-filter(all, is.na(Gear)) # all by def
-head(hist2)
-filter(hist2, is.na(NomActive_pred)) # here is the problem - should be solved now 
+# final data adjusment
+head(reconstructed_effort_ref) # remove P, GT, NV, add spin-up, transition, experiment, validation column
+reconstructed_effort_ref<-reconstructed_effort_ref %>% 
+  select(-P, -NV) %>% 
+  mutate(Phase = case_when (Year %in% c(1850:1949) ~ "spin-up",
+                            Year %in% c(1950:1961) ~ "transition",
+                            Year %in% c(1962:2010) ~ "experiment",
+                            Year > 2010 ~ "validation"))
 
 
-filter(effort, is.na(Gear))
-filter(all2, is.na(Gear))
-
+yannick_dir <- "/rd/gem/private/users/yannickr"
+fwrite(x = reconstructed_effort_ref, file.path(yannick_dir, "effort_histsoc_1850_2010.csv")) # this is effort_histsoc_1850_2017.csv but before printing you need to make sure you are not overwriting any other file
 ```
+
+NOTES: 
+Should it be a separate file from effort_histsoc_1961_2010.csv or should we combined the 2? Combined, done 
+I used 1950 values for the reconstruction - should 1950-1961 be considered spin-up? yes - but more specifically transition, done 
+I used effort to 2010 for the reconstruction - should I used all_effort_aggregated.csv or a version of this with effort data to 2017? Yes, done  
+
+Decisions: 
+1. war, not war for GAM on catch? WAR
+2. ref year = 1950 or mean 1945-1955? 1945-1955
+3. ref year when allocating effort across groups 1950 or mean 1950-1960? 1950-1960
+
+1. N, P and GT were given as part of the original effort file but are not reconstructed so NA for spin-up. Delete these columns and maybe provide them as separate file
+2. Some reconstructions are based on very few effort values - See LME 6, 18 and 57 in particular. OK just need to specify in method description 
+3. For LME 64 effort is increasing by def. Use LME 66 and apply that rate of change. Find out which is Arctic and make sure taht LME is 0 untill 1950 - new fishery... 
+4. Spatial grid cell effort - should we reconstruct that too? if so, should we use the globla trend and allocate effort actoss cells based on effort 5. contribution in 1950 as done for the LME aggregated data? 
+6. catch data - which years should we provide? should we add a calibration/validation column? YES 
+7. Should we add the same column to the effort data? spin-up, transition, projection, validation? YES 
