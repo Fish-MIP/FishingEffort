@@ -110,17 +110,23 @@ head(effort_new_Industrial)
 # put them back together
 colnames(effort_new_Artisanal)
 colnames(effort_new_Industrial)
-trial<-rbind(effort_new_Industrial, effort_new_Artisanal)
-head(trial)
+effort_tot<-rbind(effort_new_Industrial, effort_new_Artisanal)
+head(effort_tot)
 
-nrow(trial)
+nrow(effort_tot)
 nrow(effort_new_Artisanal)+nrow(effort_new_Industrial)
 
-trial<-trial %>% 
-  filter(Year >= 1961, Year <= 2010)
+# effort to calculate spin-up
 
-head(trial)
-sort(unique(trial$Year))
+effort_spinup<-effort_tot %>% 
+  filter(Year >= 1950, Year <= 2017) # this should be the default years for effort 
+
+write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017.csv") 
+
+## NOTE: the below (besides checking) si not necessary anymore as the final effort data will include spin-up - all data on DKRZ need to be replaced 
+
+trial<-effort_tot %>% 
+  filter(Year >= 1961, Year <= 2010)
 
 # explore lme42 and 38 for checking - OK plots match
 
@@ -138,7 +144,7 @@ ggplot(lme42, aes(x = Year, y = NomActive, group = Sector, color = Sector))+
   # geom_point()+
   geom_line()
 
-write.csv(trial, "/rd/gem/private/users/yannickr/effort_histsoc_1961_2010.csv")
+write.csv(trial, "/rd/gem/private/users/yannickr/effort_histsoc_1961_2010.csv") # this is the effort data for model runs (to which spin-up needs to be added)
 
 # load data from gem48 to isismip ----
 
