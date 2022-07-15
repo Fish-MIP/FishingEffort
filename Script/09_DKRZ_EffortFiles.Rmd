@@ -1,0 +1,124 @@
+---
+title: "09_DKRZ_EffortFiles"
+author: "Camilla Novaglio"
+date: "13/07/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The **AIM** of this file is to clean final files catch and effort to upload to DKRZ 
+
+Latest effort file from 06_Extrapolation_forSpinUp: *effort_histsoc_1850_2017.csv*
+Latest catch data from 07_catch_data *catch_histsoc_1869_2017.csv*
+
+Check paper by Xiao Liu: https://agupubs.onlinelibrary.wiley.com/doi/pdf/10.1029/2021GL094367
+
+## set environment 
+
+```{r}
+
+rm(list=ls())
+
+library(tidyverse)
+library(dtplyr)
+library(tictoc)
+library(data.table)
+library(mgcv)
+library(gridExtra)
+
+select<-dplyr::select
+
+```
+
+## effort data load and clean 
+
+```{r}
+
+yannick_dir_new <- "/rd/gem/private/users/yannickr"
+
+effort<-read_csv(file.path(yannick_dir_new, "effort_histsoc_1850_2017.csv"))
+head(effort)
+
+effort2<-effort %>% 
+  filter(Year<=2010) %>% 
+  mutate(Phase = ifelse(Year < 1961, "spin-up", "experiment"))
+
+head(effort2)
+
+```
+
+## catch data load and clean 
+
+```{r}
+
+catch<-read_csv(file.path(yannick_dir_new, "catch_histsoc_1869_2017.csv"))
+
+# calculate catch as sum of reported and IUU, discards are generally not considered (Reg's comment in 07_catch_data.rmd)
+# WARNING - this is done in 06_spinUp too 
+catch$Catch<-catch$Reported + catch$IUU
+head(catch)
+
+catch2<-catch %>% 
+  filter(Year <= 2004) %>% 
+  select(-eez_country_code,-Reported,-IUU,-Discards) %>% # make as similar as possible to effort? not sure about these fields 
+  mutate(Phase = ifelse(Year < 1961, "spin-up", "calibration")) # I don't need a phase here as none is used for experiment or spin-up but all is used for calibration ?? 
+
+head(catch2)
+
+```
+
+## SAUP codes
+
+```{r}
+
+saup<-read_csv(file.path(yannick_dir_new, "SAUPcode_to_Country.csv"))
+
+colnames(saup)<-c("Country_name","SAUP","ISO3","Region")
+
+catch3<-catch2 %>% 
+  full_join(select(saup, -c(Country_name, Region))) %>% 
+  select(-c(FCountryName,ISO3))
+
+head(effort2)
+head(catch3)
+
+```
+
+## LME codes
+
+```{r}
+
+# lme<-read_csv(file.path(yannick_dir_new, "LMESeq.csv"))
+lme<-read_csv(file.path(yannick_dir_new, "Reg_catchData/LMECells.csv")) # with names 
+
+```
+
+## save final data 
+
+```{r}
+
+# rearrange columns 
+effort2<-effort2[,c("Year","Sector", "LME", "eez_country_name","SAUP", "Gear", "FGroup", "NomActive", "Phase")]
+head(effort2)
+
+catch3<-catch3[,c("Year","Sector", "LME", "eez_country_name","SAUP", "FGroup", "Catch", "Phase")]
+head(catch3)
+
+# final effort 
+dkrz<-"/rd/gem/private/users/yannickr/DKRZ_EffortFiles/"
+fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1850_2010.csv"))
+
+# final catch 
+fwrite(x = catch3, file.path(dkrz, "calibration_catch_histsoc_1850_2004.csv"))
+
+# LME codes 
+fwrite(x = lme, file.path(dkrz, "LMEnames.csv"))
+
+# SAUP codes 
+fwrite(x = saup, file.path(dkrz, "SAUPnames.csv"))
+
+# upload to DKRZ
+# scp -r DKRZ_EffortFiles/* b381217@levante.dkrz.de:/home/b/b381217/temp_effort/
+
+```
