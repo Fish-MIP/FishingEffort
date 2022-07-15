@@ -106,8 +106,6 @@ ggplot(data = EEZ_xyz)+
 
 ggsave(filename = here("Explore/cottrell-explore/eez_wo_duplicates.jpg"), dpi=300, device = "jpg", width = 9, height = 5)
 
-
-
 #LME data
 (LMEs <- fread(file.path(yannick_dir, "LMESeq.csv")))
 LMEs <- lazy_dt(LMEs)

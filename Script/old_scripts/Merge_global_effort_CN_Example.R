@@ -162,4 +162,4 @@ big_data = do.call(rbind, trial3)
 head(big_data)
 
 # Save the end product in gem48 - where? as csv? or Rdata or netcdf (though not spatially resolved so not sure netcdf is the way to go)? 
-saveRDS(big_data, file = "/../../rd/gem/private/users/yannickr/merging_cami/effort_year_country_LME_gear_FGroup.rds")
+# saveRDS(big_data, file = "/../../rd/gem/private/users/yannickr/effort_year_country_LME_gear_FGroup.rds")

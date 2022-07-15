@@ -6,7 +6,7 @@ library("tidyverse")
 library("gridExtra")
 
 # Steps: 
-# Plot global effort and check old version (Yannick) and new version (aggregation by Cami/Rich) match
+# Plot global effort and check that old version (Yannick) and new version (aggregation by Cami/Rich) match
 # do the same at LME level 
 # Compare with original gridded files - are the global sum for 1 year the same? 
 # Old Data on ISIMIP: DOI: https://data.isimip.org/datasets/98037e0f-04cd-41ea-a5e3-9e4b1e351418/
@@ -19,74 +19,6 @@ yannick_dir_old <- "/rd/gem/private/DataYannick"
 # NEW ----
 effort_new<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated.csv"))
 head(effort_new)
-
-# 
-# # Adjust new effort and print final version for FishMIP after discussion wit Julia 
-# # 1. aggregate by industrial and Artisanal (UP + APW) 
-# # 2. consider only 1961 -2010 included. 
-# # 2.b cut unused columns 
-# # 3. print final -> effort_histsoc_1961_2010.csv
-# # 4. when ready adn after talking with Matthias, upload to DKRZ where he wants. 
-# # it should be somewhere around here isimip3a/input/socioeconomic/fishing
-# 
-# # other notes: 
-# # fishimip: trying to avoid giving gridded file for this simulation run - so aggregated csv should be OK 
-# # Emma/IMAS: the datafile here are differnt than the one on fishmip -> 
-# # they are aggregated as per Yannick info/papers (e.g. industrial, UP and APW) and they include gridded 
-# # emma would like to have raster files instead of csv 
-# # but, given we typically use netcdf, we could directly provide this format for the gridded data instead of rasters or csv
-# # this needs to be further discussed (after Easter with Julia)
-# 
-# effort_new_Artisanal<-effort_new %>% 
-#   filter(Sector !="I") %>% 
-#   group_by(eez_country_name, LME, SAUP, Gear, FGroup, Year) %>% # delete fao_area
-#   summarise(NomActive = sum(NomActive, na.rm = TRUE),
-#             # EffActive = sum(EffActive, na.rm = TRUE), # no need for EffActive
-#             NV = sum(NV, na.rm = TRUE),
-#             P = sum(P, na.rm = TRUE)) %>% # no need for GT
-#             # GT = sum(GT, na.rm = TRUE)) %>% 
-#   ungroup() %>% 
-#   mutate(Sector = "Artisanal")
-# 
-# head(effort_new_Artisanal)
-# 
-# # effort_new_Industrial<-effort_new %>% 
-# #   filter(Sector =="I") %>% 
-# #   mutate(Sector = "Industrial")
-# 
-# effort_new_Industrial<-effort_new %>% 
-#   filter(Sector == "I") %>% 
-#   group_by(eez_country_name, LME, SAUP, Gear, FGroup, Year) %>% # delete fao_area
-#   summarise(NomActive = sum(NomActive, na.rm = TRUE),
-#             # EffActive = sum(EffActive, na.rm = TRUE), # no need for EffActive
-#             NV = sum(NV, na.rm = TRUE),
-#             P = sum(P, na.rm = TRUE)) %>% # no need for GT
-#   # GT = sum(GT, na.rm = TRUE)) %>% 
-#   ungroup() %>% 
-#   mutate(Sector = "Industrial")
-# 
-# head(effort_new_Industrial)
-# 
-# # put them back together
-# colnames(effort_new_Artisanal)
-# colnames(effort_new_Industrial)
-# trial<-rbind(effort_new_Industrial, effort_new_Artisanal)
-# head(trial)
-# 
-# nrow(trial)
-# nrow(effort_new_Artisanal)+nrow(effort_new_Industrial)
-# 
-# # effort_new_2<-effort_new_Industrial %>% 
-# #   full_join(effort_new_Artisanal)
-# 
-# trial<-trial %>% 
-#   filter(Year >= 1961, Year <= 2010)
-# 
-# head(trial)
-# 
-# write.csv(trial, "/rd/gem/private/users/yannickr/effort_histsoc_1961_2010.csv")
-
-# WARNING - further check this new file (trial)
 
 # OLD ----
 effort_old<-read_csv(file.path(yannick_dir_old, "TotalAggregatedFGroupLME.csv"))
@@ -186,10 +118,6 @@ effort_list<-split(effort_mapped_all, effort_mapped_all$LME)
 
 # for multiple plotting.... 
 plot_effort<-list()
-# plot_effort_old<-list()
-# plot_catch<-list()
-# plot_catch_old<-list()
-# plotall<-list()
 
 for(i in 1:length(effort_list)){
   
@@ -200,22 +128,15 @@ for(i in 1:length(effort_list)){
     theme(axis.text=element_text(size=9),
           axis.title=element_text(size=9),
           title=element_text(size=8)) #+
-    # facet_wrap(~Version)
-  
-  # layout<-"
-  # AABB
-  # ##CC"
-  # 
-  # plotall[[i]]<-plot_effort[[i]]+plot_effort_old[[i]]+plot_catch_old[[i]]+plot_layout(design = layout)
-  
+ 
 }
 
-# 4 plot per page - all effort
-ggsave("Output/Summary_LME_NewVsOldData_corrected.pdf", marrangeGrob(grobs = plot_effort, nrow=2, ncol=2), device = "pdf")
-# one page per LME
-pdf("Output/Summary_LME_NewVsOldData2_corrected_split.pdf", width = 10, height=5)
-plot_effort
-dev.off()
+# # 4 plot per page - all effort
+# ggsave("Output/Summary_LME_NewVsOldData_corrected.pdf", marrangeGrob(grobs = plot_effort, nrow=2, ncol=2), device = "pdf")
+# # one page per LME
+# pdf("Output/Summary_LME_NewVsOldData2_corrected_split.pdf", width = 10, height=5)
+# plot_effort
+# dev.off()
 
 # WARNING 1: same LMEs show higher values in new effort
 # WARNING 2: some LMEs show only one trend - is this becasue of perfect matching? YES
@@ -231,22 +152,12 @@ effort_mapped_new_FG<-effort_new %>%
   ungroup() %>% 
   mutate(Version = "New")
 
-# ggplot(effort_mapped_new_FG, aes(x = Year, y = effort, color = Version))+ 
-#   geom_line()+
-#   theme_bw()+
-#   facet_wrap(~FGroup)
-
 effort_mapped_old_FG<-effort_old %>% 
   filter(Sector == "I",LME %in% keep) %>%
   group_by(Year, LME, FGroup) %>% 
   summarise(effort = sum(NomActive, na.rm = TRUE)) %>% 
   ungroup() %>% 
   mutate(Version = "Old")
-
-# ggplot(effort_mapped_old_FG, aes(x = Year, y = effort, color = Version))+ 
-#   geom_line()+
-#   theme_bw()+
-#   facet_wrap(~FGroup)
 
 effort_mapped_all_FG<- effort_mapped_old_FG %>% 
   full_join(effort_mapped_new_FG)
@@ -299,67 +210,3 @@ effort_mapped_new_FG %>% group_by(Year) %>% summarise(trial = sum(effort))
 # (powered) vessels of that country (approx 2kW/vessel).
 # GT = ?? gross tonnage
 # Year = Year (end of the year) when the Effort/Catch is occurring
-
-# # check effort maps ----
-# yannick_dir_new <- "/rd/gem/private/users/yannickr/otherdata"
-# effort<-read_csv(file.path(yannick_dir_new, "GriddedEffortby_FGroup_FishingCountry_Sector.csv"))
-# head(effort)
-# effort2<-effort[-1,]
-# head(effort2)
-# 
-# 
-# # provide gridded artisanal and industrial ----
-# 
-# effort3<-effort2 %>% 
-#   group_by(Lat, Lon, Year, Sector) %>% 
-#   summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
-#   ungroup()
-# 
-# head(effort3)
-# 
-# effort4<-effort3 %>% 
-#   spread(Sector, NomActive)
-# 
-# head(effort4)
-# 
-# # this is industrial 
-# effort5<-effort4 %>% 
-#   select(-APW, -UP) %>% 
-#   rename(NomActive = I) %>% 
-#   filter(!is.na(NomActive), Year >=1961, Year <=2010)
-# 
-# sort(unique(effort5$Year))
-# 
-# IndustrialEffort<-effort5
-# View(IndustrialEffort)
-# 
-# write.csv(IndustrialEffort, "/rd/gem/private/users/yannickr/gridded_industrial_effort_histsoc_1961_2010.csv")
-# 
-# effort6<-effort4 %>% 
-#   select(-I) %>% 
-#   mutate(NomActive = UP+APW) %>% 
-#   filter(!is.na(NomActive), Year >=1961, Year <=2010)
-# 
-# sort(unique(effort6$Year))
-# ArtisanalEffort<-effort6
-# 
-# write.csv(ArtisanalEffort, "/rd/gem/private/users/yannickr/gridded_artisanal_effort_histsoc_1961_2010.csv")
-# 
-# # plot gridded data ----
-# 
-# unique(effort2$Sector)
-# # one for each sector 
-# trial_I<-effort2 %>% 
-#   filter(Year == 2010, Sector == "APW") %>% 
-#   group_by(Lat, Lon) %>% 
-#   summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
-#   ungroup()
-# 
-# library("reshape2")
-# library("raster")
-# 
-# trial_I_2<-acast(trial_I, Lat ~ Lon)
-# plot(raster(log10(trial_I_2))) # something wrong with lat/lon
-# 
-# # try this
-# # plot(rasterFromXYZ(trial_I %>% rename(y = Lat, x = Lon, z = NomActive))) # still not working so check the lat/lon
