@@ -19,20 +19,49 @@ The aim of this script is to plot GFDL input data
 
 rm(list=ls())
 
+# server clean on 15/07/2022 - need to reinstall all packages... 
 # install.packages("ncdf4")
+# install.packages("sp")
+# install.packages("raster")
 # install.packages("rgdal")
+# install.packages("gtable")
+# install.packages("R6")
+# install.packages("scales")
+# install.packages("colorspace")
+# install.packages("munsell")
+# install.packages("magrittr")
+# install.packages("crayon")
+# install.packages("fansi") 
+# install.packages("utf8")
+# install.packages("pillar")
+# install.packages("pkgconfig")
+# install.packages("tibble")
+# install.packages("withr")
+# install.packages("ggplot2")
+# install.packages("data.table")
+# install.packages("ncdf4.helpers")
+# install.packages("tictoc")
+# install.packages("purrr")
+# install.packages("tidyselect")
+# install.packages("dplyr")
+# install.packages("dtplyr")
+# install.packages("labeling")
+# install.packages("farver")
+# install.packages("digest")
+# install.packages("gridExtra")
 
 library(ncdf4) # package for netcdf manipulation
 library(raster) # package for raster manipulation
 library(rgdal) # package for geospatial analysis
 library(ggplot2) # package for plotting
-library(RNetCDF) # WARNING not used here - still need to explore 
+# library(RNetCDF) # WARNING not used here - still need to explore 
 library(data.table)
 library(dtplyr)
-library(raster)
+# library(raster)
 library(ncdf4.helpers)
 library(tictoc)
 library(dplyr, warn.conflicts = FALSE)
+library(gridExtra)
 
 ```
 
@@ -54,7 +83,7 @@ my_theme<-theme_bw()+
 ```
 
 
-## Load enviro data and do annual means *can skip depending on below* 
+## Load enviro data and do annual means 
 
 ```{r}
 
@@ -150,13 +179,13 @@ rm(intpp_ctr)
 # dim(intpp_crt_annual) # 50 years 
 # plot(intpp_crt_annual[[50]])
 
-getwd()
+# getwd()
 # save(intpp_exp_annual, intpp_crt_annual, file = "Data/temp_intpp.RData")
 save.image(file = "~/FishingEffort/Data/temp_intpp.RData")
 
 ```
 
-## Extract LME and plot
+## Extract LME-level data and plot
 
 ```{r}
 
@@ -184,24 +213,13 @@ toc() # 6.432 sec elapsed
 # dim(lme_mask_025[[1]]) 
 # plot(lme_mask_025[[1]])
 
-#### START LOOP for each LME - in parallel see code in 02!
-
-
-
-#### not working as a function or a loop - try one by one 
-
-
-
-
-
-
-Extract_LME_TimeSeries<-function(lme_mask_025, intpp_exp_annual, intpp_crt_annual){
+# extract LME and plot function 
+Extract_LME_TimeSeries<-function(lme_mask_025, lme_mask_name, intpp_exp_annual, intpp_crt_annual, units){
   
   # # trial
-  i = 22
-  lme<-lme_mask_025[[i]]
-  intpp_exp_annual = intpp_exp_annual
-  intpp_crt_annual = intpp_crt_annual
+  # lme_mask_025<-lme_mask_025[[42]]
+  # intpp_exp_annual = intpp_exp_annual
+  # intpp_crt_annual = intpp_crt_annual
   
   # extrapolate LME data 
   # WARNING - this is very slow: if done before annual means 15 min to run, if done after annual means 18 sec to run for each LME. 
@@ -210,13 +228,13 @@ Extract_LME_TimeSeries<-function(lme_mask_025, intpp_exp_annual, intpp_crt_annua
   # https://stackoverflow.com/questions/64785261/replacing-raster-values-with-another-raster-when-meeting-certain-condition
 
   tic()
-  intpp_exp_annual_lme <- mask(intpp_exp_annual, lme, updatevalue=NA)
+  intpp_exp_annual_lme <- mask(intpp_exp_annual, lme_mask_025, updatevalue=NA)
   toc() # 15.622 sec elapsed
   # plot(intpp_exp_annual_lme[[50]]) 
   # dim(intpp_exp_annual_lme)
 
   tic()
-  intpp_crt_annual_lme <- mask(intpp_crt_annual, lme, updatevalue=NA)
+  intpp_crt_annual_lme <- mask(intpp_crt_annual, lme_mask_025, updatevalue=NA)
   toc() # 15.622 sec elapsed
   # plot(intpp_crt_annual_lme[[50]]) 
   # dim(intpp_crt_annual_lme)
@@ -259,54 +277,56 @@ Extract_LME_TimeSeries<-function(lme_mask_025, intpp_exp_annual, intpp_crt_annua
   #   geom_line()
 
   # calculate spin-up from control to add to both control and experiment. 
-  spinup<-intpp_crt_annual_lme_weighted %>% 
-    filter(Year >= 1961, Year <=1980)
-
-  nRepeat<-round((1960-1850)/nrow(spinup))
   
-  trial<-spinup %>% 
-    slice(rep(1:n(), nRepeat))
-  
-  trial<-trial %>% 
-    mutate(Year = seq(1960, 1960-(nrow(trial)-1))) %>% 
-    filter(Year >=1850)
-
-  spinup<-trial  
-  
+  # PROBLEM - mirrowing patterns use ugly version below 
+  # spinup<-intpp_crt_annual_lme_weighted %>% 
+  #   filter(Year >= 1961, Year <=1980)
+  # 
+  # nRepeat<-round((1960-1850)/nrow(spinup))
+  # 
+  # trial<-spinup %>% 
+  #   slice(rep(1:n(), nRepeat))
+  # 
+  # trial<-trial %>% 
+  #   mutate(Year = seq(1960, 1960-(nrow(trial)-1))) %>% 
+  #   filter(Year >=1850)
+  # 
+  # spinup<-trial  
+  # 
   # ggplot(trial, aes(x = Year, y = weighted_mean))+
   #   geom_line()
   # 
   
-  # # previous version 
-  # spinup<-intpp_crt_annual_lme_weighted %>% 
-  #   filter(Year >= 1961, Year <=1980)
-  # 
-  # min<-min(spinup$Year)-1
-  # spinup2<-spinup %>% 
-  #   mutate(Year = seq(min-(nrow(spinup)-1),min))
-  # 
-  # min<-min(spinup2$Year)-1
-  # spinup3<-spinup %>% 
-  #   mutate(Year = seq(min-(nrow(spinup)-1),min))
-  # 
-  # min<-min(spinup3$Year)-1
-  # spinup4<-spinup %>% 
-  #   mutate(Year = seq(min-(nrow(spinup)-1),min))
-  # 
-  # min<-min(spinup4$Year)-1
-  # spinup5<-spinup %>% 
-  #   mutate(Year = seq(min-(nrow(spinup)-1),min))
-  # 
-  # min<-min(spinup5$Year)-1
-  # spinup6<-spinup %>% 
-  #   mutate(Year = seq(min-(nrow(spinup)-1),min))
-  # 
-  # min<-min(spinup6$Year)-1
-  # spinup7<-spinup %>% 
-  #   mutate(Year = seq(min-(nrow(spinup)-1),min)) %>% 
-  #   filter(Year >= 1850)
-  # 
-  # spinup<-rbind(spinup2,spinup3, spinup4,spinup5, spinup6, spinup7)
+  # previous version
+  spinup<-intpp_crt_annual_lme_weighted %>%
+    filter(Year >= 1961, Year <=1980)
+
+  min<-min(spinup$Year)-1
+  spinup2<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min))
+
+  min<-min(spinup2$Year)-1
+  spinup3<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min))
+
+  min<-min(spinup3$Year)-1
+  spinup4<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min))
+
+  min<-min(spinup4$Year)-1
+  spinup5<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min))
+
+  min<-min(spinup5$Year)-1
+  spinup6<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min))
+
+  min<-min(spinup6$Year)-1
+  spinup7<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min)) %>%
+    filter(Year >= 1850)
+
+  spinup<-rbind(spinup2,spinup3, spinup4,spinup5, spinup6, spinup7)
   
   # combine to experiment and control 
   intpp_exp_annual_lme_weighted_spinup<-rbind(intpp_exp_annual_lme_weighted, spinup)
@@ -321,61 +341,70 @@ Extract_LME_TimeSeries<-function(lme_mask_025, intpp_exp_annual, intpp_crt_annua
   yMax = max(final$weighted_mean, na.rm = TRUE)
   ann_text <- data.frame(Year = c(1850+10,1961+10), weighted_mean = rep(yMax,2), lab = c("Spin-up","Experiment"), Type = rep("Control", 2))
 
-  (plot<-ggplot(data = final, aes(x = Year, y = weighted_mean, group = Type, color = Type)) +
+  plot<-ggplot(data = final, aes(x = Year, y = weighted_mean, group = Type, color = Type)) +
     # ggtitle(paste("LME", toKeep, sep = " "))+
-    ggtitle(paste("LME", i , lme_mask_name[[i]], sep = " "))+
+    ggtitle(paste("LME", lme_mask_name, sep = " "))+
     # facet_wrap(~group, scales = "free", nrow = 2)+
-    annotate("rect",xmin=1850, xmax=1950, ymin=-Inf, ymax=Inf, fill = "#edf8fb", alpha = 0.4)+ # spin-up
+    annotate("rect",xmin=1850, xmax=1961, ymin=-Inf, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up #edf8fb
     # annotate("rect",xmin=1950, xmax=1961, ymin=-Inf, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # transition
     annotate("rect",xmin=1961, xmax=2010, ymin=-Inf, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # projection 
     # annotate("rect",xmin=2010, xmax=2017, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # validation
     geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
     # geom_point(data = filter(final_df_plot, Data == "Reconstructed values"),size=1)+
-    geom_line() +
+    geom_line(size = 0.2) +
     scale_color_manual(values = c("blue", "black"), drop = FALSE)+
     # scale_fill_chris()+
     my_theme+
     geom_vline(xintercept=1961, linetype="dashed", color = "red", size=0.5)+
-    geom_vline(xintercept=1980, linetype="dashed", color = "red", size=0.5))+
-    ylab(paste(colnames(final)[2], units, sep =" "))
+    geom_vline(xintercept=1980, linetype="dashed", color = "red", size=0.5)+
+    ylab(paste(colnames(final)[2], "(",units,")", sep =" "))
 
-  return(list(final = final, plot = plot)) # could also extract intpp_crt_annual_lme and intpp_ext_annual_lme: annual values by grid cell in LME
+  return(plot = plot)
+  # return(list(final = final, plot = plot)) # could also extract intpp_crt_annual_lme and intpp_ext_annual_lme: annual values by grid cell in LME
   
 }
 
+# # trial LME 42
 # tic()
-# a<-Extract_LME_TimeSeries(lme_mask_025[[22]], intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual)
-# plot<-a$plot
-# plot<-a$final
+# a<-Extract_LME_TimeSeries(lme_mask_025 = lme_mask_025[[42]], lme_mask_name = lme_mask_name[[42]], intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual, units = units)
 # toc() # 55.476 sec elapsed
+# 
+# pdf("Output/intpp_GFDL_lme42.pdf", height = 4, width = 6)
+# a
+# dev.off()
 
 # loop through LMEs
 
 plot_new<-list()
-final_new<-list()
+# final_new<-list()
 
-# for(i in 1:length(lme_mask_025)){
-for(i in 1:2){
+tic()
+for(i in 1:length(lme_mask_025)){
+# for(i in 1:2){
   
-  a<-Extract_LME_TimeSeries(lme_mask_025[[25]], intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual)
-  plot_new[[i]]<-a$plot
-  final_new[[i]]<-a$final
+  message("Processing lme # ", i, " of ", length(lme_mask_025))
+  
+  plot_new[[i]]<-Extract_LME_TimeSeries(lme_mask_025 = lme_mask_025[[i]], lme_mask_name = lme_mask_name[[i]], intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual, units = units)
+  # plot_new[[i]]<-a$plot
+  # final_new[[i]]<-a$final
   
 }
+toc() # 4093.522 sec elapsed 1h 8 min
 
-# save data in case 
-save.image(file = "~/FishingEffort/Data/temp_intpp_analysed.RData")
-
-
-
-
+pdf("Output/intpp_GFDL.pdf", height = 8, width = 6)
+marrangeGrob(grobs = plot_new, nrow=3, ncol=1)
+dev.off()
 
 
 
 
 
 
-### IN PARALLEL ---- try next option 
+
+
+
+### IN PARALLEL ---- 
+# try next option 
 
 library(parallel)
 setwd("/data/home/camillan/FishingEffort/Output") # set the folder where these files will be saved ... don't know how to save them in here 
@@ -385,7 +414,6 @@ chunk_size <- 10 # chunk size for processing
 lme_new <- split(lme_mask_025[1:20], ceiling(seq_along(lme_mask_025[1:20])/chunk_size))
 length(lme_mask_025) #60 chunks
 length(lme_new)
-
 
 tic()
 for(i in 1:length(lme_new)){
@@ -432,47 +460,16 @@ library(pbapply)
 
 X$error<- pbapply(X,1,runModel,params,dat) # x = dataframe of lme by row, 1 = by raw, function and param are the argumetn of the function.  
 
-
-
-
-
-
-
-original_effort_files <- list.files(file.path(original_effort_dir), pattern = ".csv")
-
-chunk_size <- 500 #chunk size for processing
-effort_list_split <- split(original_effort_files, ceiling(seq_along(original_effort_files)/chunk_size))
-length(effort_list_split) #60 chunks
-
-tic()
-for(i in 1:length(effort_list_split)){
-  
-  file_chunk <- effort_list_split[[i]]
-  
-  message("Processing chunk #", i, " of ", length(effort_list_split))
-  
-  mclapply(X = file_chunk, FUN = join_effort_data, mc.cores = 40)
-  
-}
-toc()
-4679.399/3600 #1.3 hours to run
-
-
-
-
-
-
 ```
 
-
-## Load data 
+## Other data exploration *no need to run*
 
 ```{r data}
 
-# Code example from https://rpubs.com/boyerag/297592
+# Code example from https://rpubs.com/boyerag/297592 ----
 
 # open and extract data 
-# try inpp one degree # NO need the 15arcmin ones to compare to control - but very slow so might be better onedegree as you develope the code - NOTE need to build the spin-up from control files and add them to experiment file!!!!! 
+# try inpp one degree 
 nc_data <- nc_open("/rd/gem/private/fishmip_inputs/ISIMIP3a/experiment/gfdl-mom6-cobalt2_obsclim_intpp_onedeg_global_monthly_1961_2010.nc")
 
 print(nc_data)
@@ -507,13 +504,11 @@ ndvi.array[ndvi.array == fillvalue$value] <- NA # I don't understand this as mis
 # a<-max(ndvi.array, na.rm=TRUE)
 # ndvi.array[ndvi.array == a]
 
-######### CN calculate monthly means 
-# WARNING - how do I know this is the correct orientation of lat and lon?? 
-dimnames(ndvi.array)<-list(lon,lat,Time_in_Date_format)
-dimnames(ndvi.array)[3]
+######### CN calculate monthly means ----
+# # WARNING - how do I know this is the correct orientation of lat and lon?? 
+# dimnames(ndvi.array)<-list(lon,lat,Time_in_Date_format)
+# dimnames(ndvi.array)[3]
 
-# #### SKYP this and do the below instead .... 
-# # ARRIVATA QUI - need to speed this up and check for better functions 
 # trial<-as.data.table(ndvi.array) # this si slow if 0.25 degrees.... 
 # trial2<-lazy_dt(trial)
 # head(as.data.table(trial2))
@@ -583,143 +578,9 @@ dimnames(ndvi.array)[3]
 #    normalizeWeights=T, cellnumbers=FALSE, small=TRUE, df=T, layer=0, nl=780, 
 #    factors=FALSE, sp=FALSE)
 
-
-# try commands 
-
-# In .varName(nc, varname, warn = warn) : varname used is: mask_EBS
-# If that is not correct, you can set it to one of: mask_EBS, mask_GOA, mask_CALC, mask_GOC, mask_GOM, mask_SEUSCS, mask_NEUSCS, mask_SCOT, mask_LAB, mask_IPH, mask_PCAC, mask_CARS, mask_HUMC, mask_PATC, mask_SBRS, mask_EBRS, mask_NBRS, mask_CEA, mask_GRLS, mask_BARS, mask_NORWS, mask_NS, mask_BS, mask_CBS, mask_IBC, mask_MEDS, mask_CRC, mask_GUIC, mask_BENC, mask_AGC, mask_SOMCC, mask_ARABS, mask_REDS, mask_BOB, mask_GOT, mask_SCS, mask_SULUS, mask_INDS, mask_NAS, mask_NEAS, mask_ECAS, mask_SEAS, mask_SWAS, mask_WCAS, mask_NWAS, mask_NZS, mask_ECS, mask_YELS, mask_KURC, mask_JAPS, mask_QYC, mask_OKS, mask_WBS, mask_NBS, mask_BEAS, mask_ESS, mask_LAPS, mask_KARS, mask_ISS, mask_FARP, mask_ANT, mask_BLS, mask_HUDB, mask_CARC, mask_ALEI, mask_CANHA
-
-lme_mask_name<-c("mask_EBS", "mask_GOA", "mask_CALC", "mask_GOC", "mask_GOM", "mask_SEUSCS", "mask_NEUSCS", "mask_SCOT", "mask_LAB", "mask_IPH", "mask_PCAC", "mask_CARS", "mask_HUMC", "mask_PATC", "mask_SBRS", "mask_EBRS", "mask_NBRS", "mask_CEA", "mask_GRLS", "mask_BARS", "mask_NORWS", "mask_NS", "mask_BS", "mask_CBS", "mask_IBC", "mask_MEDS", "mask_CRC", "mask_GUIC", "mask_BENC", "mask_AGC", "mask_SOMCC", "mask_ARABS", "mask_REDS", "mask_BOB", "mask_GOT", "mask_SCS", "mask_SULUS", "mask_INDS", "mask_NAS", "mask_NEAS", "mask_ECAS", "mask_SEAS", "mask_SWAS", "mask_WCAS", "mask_NWAS", "mask_NZS", "mask_ECS", "mask_YELS", "mask_KURC", "mask_JAPS", "mask_QYC", "mask_OKS", "mask_WBS", "mask_NBS", "mask_BEAS", "mask_ESS", "mask_LAPS", "mask_KARS", "mask_ISS", "mask_FARP", "mask_ANT", "mask_BLS", "mask_HUDB", "mask_CARC", "mask_ALEI", "mask_CANHA")
-
-lme_mask_1<-list()
-
-for(i in 1:length(lme_mask_name)){
-  
-  lme_mask_1[[i]]<-brick("/rd/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/LMEs66_masks_0.25deg.nc", varname = lme_mask_name[[i]])
-  names(lme_mask_1)[i]<-lme_mask_name[i]
-  
-}
-
-dim(lme[[1]]) # why does this have a time dimention? is it OK?  
-plot(lme[[1]])
-
-# extrapolate 0.25 degree instead!  
-
-
-
-
-
-
-
-
-# intpp
-nc_data <- brick("/rd/gem/private/fishmip_inputs/ISIMIP3a/experiment/gfdl-mom6-cobalt2_obsclim_intpp_15arcmin_global_monthly_1961_2010.nc")
-# dim(nc_data)
-# class(nc_data)
-# nc_data[,,600] # this is a brick object - not sure how to access data and dimention here ...  
-# plot(nc_data[[600]]) # access rater layer 600
-# class(nc_data)
-# 
-# # check and adjust?? same extent and crs?? 
-# extent(nc_data)
-# extent(lme1)
-# crs(nc_data) 
-# crs(lme1)
-
-
-# read in 0.25 control too ..... 
-
-
-
-
-
-
-
-# extact lme data only - this is where the LME loop will start .... 
-
-# possible links
-# https://stackoverflow.com/questions/51716315/how-to-subset-classify-raster-based-on-another-raster-grid-cells-values this should be the solution ... 
-# focal does not seem the right function... 
-
-# other approach 
-# https://stackoverflow.com/questions/64785261/replacing-raster-values-with-another-raster-when-meeting-certain-condition
-# dimension missing. both using brick and stack but in a different way...  
-
-# SOLUTION!!!!! 
-# crop won't work here as the extent of the lme file in terms of lat and long is the same as the intpp data. 
-# x <- mask(nc_data, lme1, updatevalue=0)
-# plot(x[[600]])
-# dim(x)
-
-x <- mask(nc_data, lme1, updatevalue=NA)
-plot(x[[600]])
-dim(x)
-class(x)
-
-# caclaulte annual means 
-
-# extract data - this is to extract lme data from global raster - you already have done this above ... but this is useful to mean adn weight I guess... function need shape file as second object...  
-# trial<-raster::extract(nc_data, lme1, fun = mean)
-
-# trial<-calc(x, fun = mean)
-# dim(trial)
-# plot(trial)
-# 
-# trial<-stackApply(x, 1:12, mean) # this is monhlty mean we need yearly means 
-# dim(trial)
-# plot(trial)
-# 
-
-# create vector to serve as index
-indices<-as.Date(Time_in_Date_format)
-indices<-format(indices, format = "%Y")
-indices <- as.numeric(indices)
-unique(indices)
-
-# calculate monthly means using stackApply
-raster_mean <- stackApply(x, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on? 
-dim(raster_mean)
-plot(raster_mean[[50]])
-class(raster_mean)
-
-# time series of weighted means 
-# from here https://stackoverflow.com/questions/55230510/calculating-weighted-spatial-global-annual-averages-across-grid-cells-using-netc
-
-# also weight by area available but example not working... 
-# raster with latitude cell values 
-w <- init(raster_mean, 'y')
-# cosine after transforming to radians
-w <- cos(w  * (pi/180))
-# multiply weights with values
-x <- raster_mean * w
-# compute weighted average
-weighted_mean<-cellStats(x, sum) / cellStats(w, sum)
-df<-data.frame(Year = unique(indices), weighted_mean= weighted_mean)
-
-# plot 
-# WARNINNG - is this right? intpp increasing for this LME? need someone else to calcualte and check trends  
-ggplot(df, aes(x = Year, y = weighted_mean))+
-  geom_line()
-
-
-### now do same for control and use the 1961-1980 on repeat to reconstruct spin-up for both files 
-
-
-# end LOOP
-
-#### need another loop for variable type (intpp, temp. phyto and zoo)
-
-
-
-
-
-
-
-
-
-
 ######## end CN 
 
+# keep going with example ----
 
 # plot one year/month 
 ndvi.slice <- ndvi.array[, , 1]
