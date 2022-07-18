@@ -63,6 +63,11 @@ exclude war years when fitting the GAM, then replace predictions with observed c
 
 rm(list=ls())
 
+# install.packages("tidyverse")
+# stringr
+# fs
+# ps
+
 library(tidyverse)
 library(dtplyr)
 library(tictoc)
@@ -96,7 +101,10 @@ head(effort)
 catch<- read_csv("/rd/gem/private/users/yannickr/catch_histsoc_1869_2017.csv")
 
 # calculate catch as sum of reported and IUU, discards are generally not considered - as per Reg's comment (see 07_cacth_data.rmd) 
-catch$catch_tot<-catch$Reported + catch$IUU
+# catch$catch_tot<-catch$Reported + catch$IUU 
+
+# not sure about above as this might have referred to historical only... 
+catch$catch_tot<-catch$Reported + catch$IUU + catch$Discards
 
 head(catch)
 
@@ -615,10 +623,11 @@ if(df_kappa ==6){ # better capture trends
 reconstructed_effort_LME_war_ref<-list()
 plot_reconstructed_effort_LME_war_ref<-list()
 
+tic()
 for(i in 1:length(toKeep)){
   
   # i = 67
-  # print(toKeep[[i]]) 
+  print(toKeep[[i]])
 
   # yes war data when fitting GAM do not re-add original data as otherwise you overwrite predictions, reference mean over a decade
   b<-effort_extrapolate(toKeep[[i]], kappa = kappa_values[i,2], war_param = "include", war_decision = "no-add", reference = "1945-1955")
@@ -630,7 +639,7 @@ for(i in 1:length(toKeep)){
   names(plot_reconstructed_effort_LME_war_ref)[i]<-toKeep[i]
   
 }
-
+toc() # 103.332 sec elapsed
 # Warning messages: 3 warnings all on LME 66
 # 1: Step size truncated due to divergence 
 # inside gam.fit in the mgcv
@@ -759,12 +768,23 @@ plot_reconstructed_effort_LME_war_ref[[65]]<-plot_LME64
 # check empty LME and remove from the list - it should be none
 plot_reconstructed_effort_LME_war_ref<-plot_reconstructed_effort_LME_war_ref[lapply(plot_reconstructed_effort_LME_war_ref,length)>0]
 
+# if(df_kappa == 6){
+#   name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa6.pdf"
+# }else if (df_kappa == 3){
+#   name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa3.pdf"
+# }
+
+# if total catch included discards: 
+
 if(df_kappa == 6){
-  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa6.pdf"
+  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa6_discards.pdf"
 }else if (df_kappa == 3){
-  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa3.pdf"
+  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa3_discards.pdf"
 }
 
+pdf(name, height = 8, width = 6)
+marrangeGrob(grobs = plot_reconstructed_effort_LME_war_ref, nrow=2, ncol=1)
+dev.off()
 
 ```
 
@@ -853,7 +873,7 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
     annotate("rect",xmin=2010, xmax=2017, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # validation
     geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
     geom_line() +
-    geom_line() +
+    # geom_line() +
     my_theme
     
   if(reference == "1950"){
@@ -947,6 +967,11 @@ plot_reconstructed_effort_ref<-plot_reconstructed_effort_ref[lapply(plot_reconst
 # marrangeGrob(grobs = plot_reconstructed_effort_ref, nrow=2, ncol=1)
 # dev.off()
 
+# if total cacthes included discards 
+pdf("Output/reconstructed_effort_for_spinup_JeromeComments_discards.pdf", height = 8, width = 6)
+marrangeGrob(grobs = plot_reconstructed_effort_ref, nrow=2, ncol=1)
+dev.off()
+
 # save data ----
 reconstructed_effort_ref<-do.call(rbind.data.frame, reconstructed_effort_ref)
 
@@ -963,7 +988,9 @@ reconstructed_effort_ref<-reconstructed_effort_ref %>%
 head(reconstructed_effort_ref) 
 
 yannick_dir <- "/rd/gem/private/users/yannickr"
-fwrite(x = reconstructed_effort_ref, file.path(yannick_dir, "effort_histsoc_1850_2017.csv"))
+# fwrite(x = reconstructed_effort_ref, file.path(yannick_dir, "effort_histsoc_1850_2017.csv"))
+# if total cacthes included discards 
+fwrite(x = reconstructed_effort_ref, file.path(yannick_dir, "effort_histsoc_1850_2017_discards.csv"))
 
 # DECISIONS: 
 # 1. war, not war for GAM on catch? WAR

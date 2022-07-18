@@ -37,7 +37,8 @@ select<-dplyr::select
 
 yannick_dir_new <- "/rd/gem/private/users/yannickr"
 
-effort<-read_csv(file.path(yannick_dir_new, "effort_histsoc_1850_2017.csv"))
+# effort<-read_csv(file.path(yannick_dir_new, "effort_histsoc_1850_2017.csv"))
+effort<-read_csv(file.path(yannick_dir_new, "effort_histsoc_1850_2017_discards.csv"))
 head(effort)
 
 effort2<-effort %>% 
@@ -56,12 +57,18 @@ catch<-read_csv(file.path(yannick_dir_new, "catch_histsoc_1869_2017.csv"))
 
 # calculate catch as sum of reported and IUU, discards are generally not considered (Reg's comment in 07_catch_data.rmd)
 # WARNING - this is done in 06_spinUp too 
-catch$Catch<-catch$Reported + catch$IUU
-head(catch)
+# catch$Catch<-catch$Reported + catch$IUU  
+# other version with Disacrds - no need for total catch 
+# catch$Catch<-catch$Reported + catch$IUU + catch$Discards 
+# head(catch)
+
+
+ggplot(catch, aes(x = Year, y = Reported))+
+  geom_point()
 
 catch2<-catch %>% 
   filter(Year <= 2004) %>% 
-  select(-eez_country_code,-Reported,-IUU,-Discards) %>% # make as similar as possible to effort? not sure about these fields 
+  # select(-eez_country_code,-Reported,-IUU,-Discards) %>% # make as similar as possible to effort? not sure about these fields / option with Discards in total catch also has the 3 columns of catches  
   mutate(Phase = ifelse(Year < 1961, "spin-up", "calibration")) # I don't need a phase here as none is used for experiment or spin-up but all is used for calibration ?? 
 
 head(catch2)
@@ -102,15 +109,20 @@ lme<-read_csv(file.path(yannick_dir_new, "Reg_catchData/LMECells.csv")) # with n
 effort2<-effort2[,c("Year","Sector", "LME", "eez_country_name","SAUP", "Gear", "FGroup", "NomActive", "Phase")]
 head(effort2)
 
-catch3<-catch3[,c("Year","Sector", "LME", "eez_country_name","SAUP", "FGroup", "Catch", "Phase")]
+# catch3<-catch3[,c("Year","Sector", "LME", "eez_country_name","SAUP", "FGroup", "Catch", "Phase")]
+# if catch included discards
+catch3<-catch3[,c("Year","Sector", "LME", "eez_country_name","SAUP", "FGroup", "Reported", "IUU", "Discards", "Phase")]
+
 head(catch3)
 
 # final effort 
 dkrz<-"/rd/gem/private/users/yannickr/DKRZ_EffortFiles/"
-fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1850_2010.csv"))
+# fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1850_2010.csv"))
+fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1850_2010_discards.csv"))
 
 # final catch 
-fwrite(x = catch3, file.path(dkrz, "calibration_catch_histsoc_1850_2004.csv"))
+# fwrite(x = catch3, file.path(dkrz, "calibration_catch_histsoc_1850_2004.csv"))
+fwrite(x = catch3, file.path(dkrz, "calibration_catch_histsoc_1850_2004_discards.csv"))
 
 # LME codes 
 fwrite(x = lme, file.path(dkrz, "LMEnames.csv"))
