@@ -13,6 +13,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 The aim of this script is to plot GFDL input data 
 
+Check paper by Xiao Liu: https://agupubs.onlinelibrary.wiley.com/doi/pdf/10.1029/2021GL094367
+
 ## Set environment 
 
 ```{r environment, echo = FALSE}
@@ -82,26 +84,27 @@ my_theme<-theme_bw()+
   
 ```
 
-
-## Load enviro data and do annual means 
+## Load intpp and do annual means 
 
 ```{r}
 
-## Skip if you have already saved the data ----
+## can skip if you have already saved the data? ----
 
-# extract intpp experiment 
+variable = "intpp"
+
+# extract intpp experiment
 file_exp<-"/rd/gem/private/fishmip_inputs/ISIMIP3a/experiment/gfdl-mom6-cobalt2_obsclim_intpp_15arcmin_global_monthly_1961_2010.nc"
 intpp_exp <- brick(file_exp)
 # dim(intpp_exp)
 # plot(intpp_exp[[600]]) # access rater layer 600
 #
-# # # check and adjust?? same extent and crs?? 
+# # # check and adjust?? same extent and crs??
 # extent(intpp_exp)
 # extent(lme_mask_025[[1]])
 # crs(intpp_exp)
 # crs(lme_mask_025[[1]])
 
-# get time vector from nc - WARNING - this should be done with the raster package and should be the same for all files. 
+# get time vector from nc - WARNING - this should be done with the raster package and should be the same for all files.
 # https://pjbartlein.github.io/REarthSysSci/netCDF.html
 nc_data <- nc_open(file_exp)
 
@@ -114,7 +117,7 @@ nc_data <- nc_open(file_exp)
 Time_in_Date_format <- nc.get.time.series(nc_data)
 Time_in_Date_format <- as.character(Time_in_Date_format)
 
-# # WARNING ... what 's this?? 
+# # WARNING ... what 's this??
 # Warning message:
 # In nc.get.dim.axes(f) :
 #   closing unused connection 3 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_104228_12432_67689.gri)
@@ -124,7 +127,7 @@ units<-ncatt_get(nc_data, "intpp", "units")$value
 nc_close(nc_data)
 rm(nc_data)
 
-# calculate annual means - it is better to calculate annual means first as this step takes a while and can be done only once before extracting lme data. 
+# calculate annual means - it is better to calculate annual means first as this step takes a while and can be done only once before extracting lme data.
 # https://gis.stackexchange.com/questions/257090/calculating-and-displaying-mean-annual-precipitation-from-cru-data
 # create vector to serve as index
 indices<-as.Date(Time_in_Date_format)
@@ -132,42 +135,42 @@ indices<-format(indices, format = "%Y")
 indices <- as.numeric(indices)
 # unique(indices)
 
-# experiment 
+# experiment
 tic()
-intpp_exp_annual <- stackApply(intpp_exp, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on? 
+intpp_exp_annual <- stackApply(intpp_exp, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on?
 toc() # 15.4694 min
 
-## WARNING - what's this ?? 
+## WARNING - what's this ??
 # Warning messages:
 # 1: In for (i in 1:loop) { :
 #   closing unused connection 4 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_101633_12432_14220.gri)
 # 2: In for (i in 1:loop) { :
 #   closing unused connection 3 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_101443_12432_97108.gri)
-# 
+#
 
 rm(intpp_exp)
 
-# dim(intpp_exp_annual) # 50 years 
+# dim(intpp_exp_annual) # 50 years
 # plot(intpp_exp_annual[[50]])
 
-# extract intpp control 
+# extract intpp control
 file_ctr<-"/rd/gem/private/fishmip_inputs/ISIMIP3a/control/gfdl-mom6-cobalt2_ctrlclim_intpp_15arcmin_global_monthly_1961_2010.nc"
 intpp_ctr <- brick(file_ctr)
 # dim(intpp_ctr)
 # plot(intpp_ctr[[600]]) # access rater layer 600
-# 
+#
 # # # check and adjust?? same extent and crs??
 # extent(intpp_ctr)
 # extent(lme_mask_025[[1]])
 # crs(intpp_ctr)
 # crs(lme_mask_025[[1]])
 
-# control 
+# control
 tic()
-intpp_crt_annual <- stackApply(intpp_ctr, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on? 
-toc() # 
+intpp_crt_annual <- stackApply(intpp_ctr, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on?
+toc() #
 
-# WARNING 
+# WARNING
 # Warning messages:
 # 1: In UseMethod("depth") :
 #   no applicable method for 'depth' applied to an object of class "NULL"
@@ -176,20 +179,123 @@ toc() #
 
 rm(intpp_ctr)
 
-# dim(intpp_crt_annual) # 50 years 
+# dim(intpp_crt_annual) # 50 years
 # plot(intpp_crt_annual[[50]])
 
 # getwd()
 # save(intpp_exp_annual, intpp_crt_annual, file = "Data/temp_intpp.RData")
-save.image(file = "~/FishingEffort/Data/temp_intpp.RData")
+# save.image(file = "~/FishingEffort/Data/temp_intpp.RData")
 
 ```
 
-## Extract LME-level data and plot
+
+## Load SST and do annual means 
 
 ```{r}
 
-# ## End Skip - load data ----
+# variable = "tos"
+#
+# # extract intpp experiment
+# file_exp<-"/rd/gem/private/fishmip_inputs/ISIMIP3a/experiment/gfdl-mom6-cobalt2_obsclim_tos_15arcmin_global_monthly_1961_2010.nc"
+# intpp_exp <- brick(file_exp)
+# # dim(intpp_exp)
+# # plot(intpp_exp[[600]]) # access rater layer 600
+# #
+# # # # check and adjust?? same extent and crs??
+# # extent(intpp_exp)
+# # extent(lme_mask_025[[1]])
+# # crs(intpp_exp)
+# # crs(lme_mask_025[[1]])
+# 
+# # get time vector from nc - WARNING - this should be done with the raster package and should be the same for all files.
+# # https://pjbartlein.github.io/REarthSysSci/netCDF.html
+# nc_data <- nc_open(file_exp)
+# 
+# print(nc_data)
+# 
+# # lon <- ncvar_get(nc_data, "lon")
+# # lat <- ncvar_get(nc_data, "lat", verbose = F)
+# # t <- ncvar_get(nc_data, "time")
+# # t_units<-ncatt_get(nc_data, "time", "units")
+# Time_in_Date_format <- nc.get.time.series(nc_data)
+# Time_in_Date_format <- as.character(Time_in_Date_format)
+# 
+# # # WARNING ... what 's this??
+# # Warning message:
+# # In nc.get.dim.axes(f) :
+# #   closing unused connection 3 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_104228_12432_67689.gri)
+# 
+# units<-ncatt_get(nc_data, "tos", "units")$value
+# 
+# nc_close(nc_data)
+# rm(nc_data)
+# 
+# # calculate annual means - it is better to calculate annual means first as this step takes a while and can be done only once before extracting lme data.
+# # https://gis.stackexchange.com/questions/257090/calculating-and-displaying-mean-annual-precipitation-from-cru-data
+# # create vector to serve as index
+# indices<-as.Date(Time_in_Date_format)
+# indices<-format(indices, format = "%Y")
+# indices <- as.numeric(indices)
+# # unique(indices)
+# 
+# # experiment
+# tic()
+# intpp_exp_annual <- stackApply(intpp_exp, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on?
+# toc() # 15.4694 min
+# 
+# ## WARNING - what's this ??
+# # Warning messages:
+# # 1: In for (i in 1:loop) { :
+# #   closing unused connection 4 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_101633_12432_14220.gri)
+# # 2: In for (i in 1:loop) { :
+# #   closing unused connection 3 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_101443_12432_97108.gri)
+# #
+# 
+# rm(intpp_exp)
+# 
+# # dim(intpp_exp_annual) # 50 years
+# # plot(intpp_exp_annual[[50]])
+# 
+# # extract intpp control
+# file_ctr<-"/rd/gem/private/fishmip_inputs/ISIMIP3a/control/gfdl-mom6-cobalt2_ctrlclim_tos_15arcmin_global_monthly_1961_2010.nc"
+# intpp_ctr <- brick(file_ctr)
+# # dim(intpp_ctr)
+# # plot(intpp_ctr[[600]]) # access rater layer 600
+# #
+# # # # check and adjust?? same extent and crs??
+# # extent(intpp_ctr)
+# # extent(lme_mask_025[[1]])
+# # crs(intpp_ctr)
+# # crs(lme_mask_025[[1]])
+# 
+# # control
+# tic()
+# intpp_crt_annual <- stackApply(intpp_ctr, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on?
+# toc() #
+# 
+# # WARNING
+# # Warning messages:
+# # 1: In UseMethod("depth") :
+# #   no applicable method for 'depth' applied to an object of class "NULL"
+# # 2: In UseMethod("depth") :
+# #   no applicable method for 'depth' applied to an object of class "NULL"
+# 
+# rm(intpp_ctr)
+# 
+# # dim(intpp_crt_annual) # 50 years
+# # plot(intpp_crt_annual[[50]])
+# 
+# # getwd()
+# # save(intpp_exp_annual, intpp_crt_annual, file = "Data/temp_intpp.RData")
+# # save.image(file = "~/FishingEffort/Data/temp_tos.RData")
+
+```
+
+## Extract LME masks 
+
+```{r}
+
+# # ## End Skip - load data ----
 # getwd()
 # load("~/FishingEffort/Data/temp_intpp.RData")
 # ls()
@@ -212,14 +318,19 @@ toc() # 6.432 sec elapsed
 # # WARNING - why does this have a 3rd dimension?  
 # dim(lme_mask_025[[1]]) 
 # plot(lme_mask_025[[1]])
+```
 
+## Extract LME time series and plot function
+
+```{r}
 # extract LME and plot function 
-Extract_LME_TimeSeries<-function(lme_mask_025, lme_mask_name, intpp_exp_annual, intpp_crt_annual, units){
+Extract_LME_TimeSeries<-function(lme_mask_025, lme_mask_name, intpp_exp_annual, intpp_crt_annual, units, variable){
   
   # # trial
-  # lme_mask_025<-lme_mask_025[[42]]
+  # lme<-lme_mask_025[[42]]
   # intpp_exp_annual = intpp_exp_annual
   # intpp_crt_annual = intpp_crt_annual
+  # variable = "intpp"
   
   # extrapolate LME data 
   # WARNING - this is very slow: if done before annual means 15 min to run, if done after annual means 18 sec to run for each LME. 
@@ -244,8 +355,33 @@ Extract_LME_TimeSeries<-function(lme_mask_025, lme_mask_name, intpp_exp_annual, 
   # mean values - weighted by grid cell latitude 
   # https://stackoverflow.com/questions/55230510/calculating-weighted-spatial-global-annual-averages-across-grid-cells-using-netc
   # also weight by area available but example not working... 
-
-  # experiment 
+  
+  # # example .... 
+  # library(raster)
+  # r <- abs(init(raster(), 'y'))
+  # s <- stack(r, r, r)
+  # 
+  # sm <- mean(s, na.rm=TRUE)
+  # cellStats(sm, mean, na.rm=TRUE)
+  # # 45
+  # 
+  # # raster with latitude cell values 
+  # w <- init(s, 'y')
+  # # cosine after transforming to radians
+  # w <- cos(w  * (pi/180))
+  # # multiply weights with values
+  # x <- s * w
+  # # compute weighted average
+  # cellStats(x, sum) / cellStats(w, sum)
+  # #[1] 32.70567
+  # 
+  # # with area
+  # # a <- area(s) / 10000
+  # a <- area(s)
+  # y <- s * a
+  # cellStats(y, sum) / cellStats(a, sum)
+  
+  # experiment
   # raster with latitude cell values 
   w <- init(intpp_exp_annual_lme, 'y')
   # cosine after transforming to radians
@@ -254,17 +390,40 @@ Extract_LME_TimeSeries<-function(lme_mask_025, lme_mask_name, intpp_exp_annual, 
   tic()
   x <- intpp_exp_annual_lme * w
   toc() # 14.822 sec elapsed
-  # compute weighted average
-  weighted_mean<-cellStats(x, sum) / cellStats(w, sum)
+  
+  # need to maks the weights too otherwise denominator too high
+  # pdf("Output/plot1.pdf", height = 8, width = 6)
+  # plot(x[[1]])
+  # dev.off()
+  # 
+  # pdf("Output/plot2.pdf", height = 8, width = 6)
+  # plot(w)
+  # dev.off()
+  
+  w2<-mask(w, lme_mask_025, updatevalue=NA)
+  
+  # pdf("Output/plot3.pdf", height = 8, width = 6)
+  # plot(w2)
+  # dev.off()
+
+  # compute weighted average - WARNING is na.rm = TRUE ok??  
+  weighted_mean<-cellStats(x, sum, na.rm = TRUE) / cellStats(w2, sum, na.rm = TRUE)
   intpp_exp_annual_lme_weighted<-data.frame(Year = unique(indices), weighted_mean = weighted_mean)
 
+  # # with area 
+  # a <- area(intpp_exp_annual_lme) / 10000
+  # a <- mask(a, lme, updatevalue=NA)
+  # y <- intpp_exp_annual_lme * a
+  # cellStats(y, sum) / cellStats(a, sum)
+  
   # control 
   w <- init(intpp_crt_annual_lme, 'y')
   w <- cos(w  * (pi/180))
   tic()
   x <- intpp_crt_annual_lme * w
   toc() # 14.822 sec elapsed
-  weighted_mean<-cellStats(x, sum) / cellStats(w, sum)
+  w2<-mask(w, lme_mask_025, updatevalue=NA)
+  weighted_mean<-cellStats(x, sum, na.rm = TRUE) / cellStats(w2, sum, na.rm = TRUE)
   intpp_crt_annual_lme_weighted<-data.frame(Year = unique(indices), weighted_mean = weighted_mean)
 
   # # plot 
@@ -282,14 +441,14 @@ Extract_LME_TimeSeries<-function(lme_mask_025, lme_mask_name, intpp_exp_annual, 
   # spinup<-intpp_crt_annual_lme_weighted %>% 
   #   filter(Year >= 1961, Year <=1980)
   # 
-  # nRepeat<-round((1960-1850)/nrow(spinup))
+  # nRepeat<-round((1960-1841)/nrow(spinup))
   # 
   # trial<-spinup %>% 
   #   slice(rep(1:n(), nRepeat))
   # 
   # trial<-trial %>% 
   #   mutate(Year = seq(1960, 1960-(nrow(trial)-1))) %>% 
-  #   filter(Year >=1850)
+  #   filter(Year >=1841)
   # 
   # spinup<-trial  
   # 
@@ -297,7 +456,7 @@ Extract_LME_TimeSeries<-function(lme_mask_025, lme_mask_name, intpp_exp_annual, 
   #   geom_line()
   # 
   
-  # previous version
+  # ugly version
   spinup<-intpp_crt_annual_lme_weighted %>%
     filter(Year >= 1961, Year <=1980)
 
@@ -323,35 +482,61 @@ Extract_LME_TimeSeries<-function(lme_mask_025, lme_mask_name, intpp_exp_annual, 
 
   min<-min(spinup6$Year)-1
   spinup7<-spinup %>%
-    mutate(Year = seq(min-(nrow(spinup)-1),min)) %>%
-    filter(Year >= 1850)
+    mutate(Year = seq(min-(nrow(spinup)-1),min)) #%>%
+    # filter(Year >= 1850)
+  
+  # sort(unique(spinup7$Year)) # to 1841 ... so effort needs to match this year.  
 
   spinup<-rbind(spinup2,spinup3, spinup4,spinup5, spinup6, spinup7)
   
   # combine to experiment and control 
   intpp_exp_annual_lme_weighted_spinup<-rbind(intpp_exp_annual_lme_weighted, spinup)
-  intpp_exp_annual_lme_weighted_spinup$Type<-"Experiment"
+  intpp_exp_annual_lme_weighted_spinup$Type<-"obsclim"
   intpp_ctr_annual_lme_weighted_spinup<-rbind(intpp_crt_annual_lme_weighted, spinup)
-  intpp_ctr_annual_lme_weighted_spinup$Type<-"Control"
+  intpp_ctr_annual_lme_weighted_spinup$Type<-"ctrlclim"
 
   final<-intpp_exp_annual_lme_weighted_spinup %>% 
     full_join(intpp_ctr_annual_lme_weighted_spinup)
 
+  # if intpp transform units from "mol m-2 s-1" to "mg C m-2 d-1" comapre with Cheryl's appaer and with Xiao Liu's paper
+  
+  if(variable == "intpp"){
+  
+  # For NPP - from slack with Cheryl 
+  # 12 g C = 1 mol
+  # seconds to days
+  # 60s/min * 60 min/ hour * 24 hrs/ day = 86400 s/day
+  # mol/m2/s * 12 gC/1 mol * 84600 s/day => 12*86400
+  # 
+  # NS LME
+  # 4.5 E-7 * 12*86400 = 0.47
+  # 
+  # To mgC
+  # mol/m2/s => gC/m2/d
+  # gC/m2/d * 1000mg/g
+
+  final<-final %>% 
+    mutate(weighted_mean = weighted_mean*12*86400*1000)
+  
+  units = "mg C m-2 d-1"
+  
+  }
+  
 # final plot 
   yMax = max(final$weighted_mean, na.rm = TRUE)
-  ann_text <- data.frame(Year = c(1850+10,1961+10), weighted_mean = rep(yMax,2), lab = c("Spin-up","Experiment"), Type = rep("Control", 2))
+  ann_text <- data.frame(Year = c(1841+10,1961+10), weighted_mean = rep(yMax,2), lab = c("Spin-up","Experiment"), Type = rep("ctrlclim", 2))
 
   plot<-ggplot(data = final, aes(x = Year, y = weighted_mean, group = Type, color = Type)) +
     # ggtitle(paste("LME", toKeep, sep = " "))+
     ggtitle(paste("LME", lme_mask_name, sep = " "))+
     # facet_wrap(~group, scales = "free", nrow = 2)+
-    annotate("rect",xmin=1850, xmax=1961, ymin=-Inf, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up #edf8fb
+    annotate("rect",xmin=1841, xmax=1961, ymin=-Inf, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up #edf8fb
     # annotate("rect",xmin=1950, xmax=1961, ymin=-Inf, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # transition
     annotate("rect",xmin=1961, xmax=2010, ymin=-Inf, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # projection 
     # annotate("rect",xmin=2010, xmax=2017, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # validation
     geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
     # geom_point(data = filter(final_df_plot, Data == "Reconstructed values"),size=1)+
-    geom_line(size = 0.2) +
+    geom_line(size = 0.3) +
     scale_color_manual(values = c("blue", "black"), drop = FALSE)+
     # scale_fill_chris()+
     my_theme+
@@ -364,14 +549,26 @@ Extract_LME_TimeSeries<-function(lme_mask_025, lme_mask_name, intpp_exp_annual, 
   
 }
 
+```
+
+## apply function to all LMEs 
+
+```{r}
+
 # # trial LME 42
-# tic()
-# a<-Extract_LME_TimeSeries(lme_mask_025 = lme_mask_025[[42]], lme_mask_name = lme_mask_name[[42]], intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual, units = units)
-# toc() # 55.476 sec elapsed
-# 
-# pdf("Output/intpp_GFDL_lme42.pdf", height = 4, width = 6)
-# a
-# dev.off()
+tic()
+a<-Extract_LME_TimeSeries(lme_mask_025 = lme_mask_025[[42]], lme_mask_name = lme_mask_name[[42]], intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual, units = units, variable = variable)
+toc() # 55.476 sec elapsed
+
+if(variable == "intpp"){
+  name = "Output/intpp_GFDL_lme42_newUnits.pdf"
+}else if(variable == "tos"){
+  name = "Output/tos_GFDL_lme42.pdf"
+}
+
+pdf(name, height = 4, width = 6)
+a
+dev.off()
 
 # loop through LMEs
 
@@ -384,27 +581,28 @@ for(i in 1:length(lme_mask_025)){
   
   message("Processing lme # ", i, " of ", length(lme_mask_025))
   
-  plot_new[[i]]<-Extract_LME_TimeSeries(lme_mask_025 = lme_mask_025[[i]], lme_mask_name = lme_mask_name[[i]], intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual, units = units)
+  plot_new[[i]]<-Extract_LME_TimeSeries(lme_mask_025 = lme_mask_025[[i]], lme_mask_name = lme_mask_name[[i]], intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual, units = units, variable = variable)
   # plot_new[[i]]<-a$plot
   # final_new[[i]]<-a$final
   
 }
 toc() # 4093.522 sec elapsed 1h 8 min
 
-pdf("Output/intpp_GFDL.pdf", height = 8, width = 6)
+if(variable == "intpp"){
+  name = "Output/intpp_GFDL_newUnits.pdf"
+}else if(variable == "tos"){
+  name = "Output/tos_GFDL.pdf"
+}
+
+pdf(name, height = 8, width = 6)
 marrangeGrob(grobs = plot_new, nrow=3, ncol=1)
 dev.off()
 
+```
 
+## trial - in parallel *still working on this*
 
-
-
-
-
-
-
-### IN PARALLEL ---- 
-# try next option 
+```{r}
 
 library(parallel)
 setwd("/data/home/camillan/FishingEffort/Output") # set the folder where these files will be saved ... don't know how to save them in here 
@@ -416,7 +614,7 @@ length(lme_mask_025) #60 chunks
 length(lme_new)
 
 tic()
-for(i in 1:length(lme_new)){
+ for(i in 1:length(lme_new)){
   
   i = 1
   file_chunk <- lme_new[[i]]

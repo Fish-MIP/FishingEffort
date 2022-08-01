@@ -13,9 +13,10 @@ The aim of this file is to aggregate Reg's historical catch data as per Yannick'
 
 ORIGIN: data sent from Reg on 20/05/22 - RE: question about mapping catch and effort
 
-WARNING on units and weights: Should we weight catch (and effort, script 02) by grip cell area when summarising at LME, EEZ level? it seems not - see Reg's email conversation. Also the non-weighted value match Yannick adn Reg's global totals. 
+WARNING on units and weights: Should we weight catch (and effort, script 02) by grip cell area when summarising at LME, EEZ level? it seems not - see Reg's email conversation. Also the non-weighted value match Yannick's and Reg's global totals. 
+
 FORMAT:  
-1. from Reg: Data by cell (with lat and long) by year by country fishing (represented by a code CNumber) by FGroup (represented by a code). The numbers are in tonnes for reported, IUU and Discards. Typically you would ignore discards as they can be any species (not the one in the record usually). So I would combine reported and IUU estimated.
+1. from Reg: Data by cell (with lat and long) by year by country fishing (represented by a code CNumber) by FGroup (represented by a code). The numbers are in tonnes for reported, IUU and Discards. Typically you would ignore discards as they can be any species (not the one in the record usually). So I would combine reported and IUU estimated (see email conversation on discards).
 2. Catch is in tonnes (by grid cell), can /area grid cell to get catch rates. Reg NOTES: "PPS if you decide to map using the cell data then you should NOT use the tonnes but rather the catch rate (tonnes per sq km of ocean) as the cells vary in size and tonnes would be misleading ..."
 
 # Add LME and EEZ to historical cacth data from Reg 
