@@ -692,12 +692,17 @@ dim(ndvi.array) # long lat time dimension... Huge!
 
 fillvalue <- ncatt_get(nc_data, "intpp", "_FillValue")
 fillvalue
+missvalue <- ncatt_get(nc_data, "intpp", "missing_value")
 
 # close the netcdf once you've extracted the data 
 nc_close(nc_data)
 
 # fill in the missing values 
 head(ndvi.array[,,1])
+# a<-ndvi.array[ndvi.array == fillvalue$value]
+# a[!is.na(a)]
+ndvi.array[which(ndvi.array == fillvalue$value)] 
+ndvi.array[which(ndvi.array == fillvalue$value)] 
 ndvi.array[ndvi.array == fillvalue$value] <- NA # I don't understand this as missing values are NA already so what's _FillValue?? nothing changes on the plot 
 # a<-max(ndvi.array, na.rm=TRUE)
 # ndvi.array[ndvi.array == a]

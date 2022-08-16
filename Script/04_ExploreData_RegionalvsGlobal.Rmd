@@ -487,14 +487,12 @@ common_name$Fleet_ewe = NA
 common_name<-common_name[order(common_name$Fleet),]
 # rownames(common_name)<-seq(1, nrow(common_name))
 
-# print and fill in .... 
-getwd()
-write.csv(common_name, "Data/fleet_mapping.csv")
-
-# then upload and load in R the filled table fleet_mapping_filled.csv
-save.image(file = "Data/my_work_space.RData")
-
-## WARNING - unable to install this packages on Gem48 - so save in local and do the analysis there untill problem solved.... 
+# # print and fill in .... 
+# getwd()
+# write.csv(common_name, "Data/fleet_mapping.csv")
+# 
+# # then upload and load in R the filled table fleet_mapping_filled.csv
+# save.image(file = "Data/my_work_space.RData")
 
 ## WARNING units do not match when converting DayKW to Day by DayKW/P
 original_effort_dir <- "/rd/gem/private/users/yannickr/effort_mapped_bycountry"
