@@ -1,0 +1,190 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Libraries
+
+```{r}
+
+rm(list= ls())
+
+library(tidyverse)
+library(sf)
+library(raster)
+library(fasterize)
+library(countrycode)
+library(ncdf4)
+
+select <- dplyr::select
+
+yannick_dir <- "/rd/gem/private/users/yannickr"
+model_region_dir <- yannick_dir # regional mask from Ryan Dropbox/FishMIP_Regional_Fircings_ISIMIP3a fishMIP_regional_mask_ISIMIP3.nc
+
+```
+
+# Load shapefile 
+
+```{r}
+
+# base_raster <- raster(res = 0.5)
+
+# Use eez file as base to see if that works
+eez_file <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv")) %>% select(Lon, Lat, A_Code)
+unique(eez_file$Lon)
+eez_base_raster <- rasterFromXYZ(eez_file)
+pdf("/data/home/camillan/FishingEffort/Output/plot.pdf")
+plot(eez_base_raster)
+dev.off()
+
+# model raster 
+# check regions and names 
+nc_data <- nc_open(file.path(model_region_dir, "fishMIP_regional_mask_ISIMIP3.nc"))
+# print(nc_data)
+
+
+lon <- ncvar_get(nc_data, "lon")
+lat <- ncvar_get(nc_data, "lat", verbose = F)
+trial<-ncvar_get(nc_data,"fishMIP_MASK")
+dim(trial)
+head(trial)
+
+rownames(trial)<-lon
+colnames(trial)<-lat
+
+# close(nc_data)
+
+# Spatial mask for regional variable extraction. Coded as 1: Humboldt, 2: North Sea, 3: Mediterranean, 4: Baltic Sea, 5: SE_Australia, 6: East Bass Strait, 7: Cook Strait, 8: Hawaiian long line, 9: Benguela, 10: EBS Shelf
+
+# CHECK 
+# trial[trial == 0]<-NA
+# trial[trial > 10]<-12
+# 
+# trial[!trial %in% c(1)]<-NA
+# pdf("/data/home/camillan/FishingEffort/Output/plot.pdf")
+# image(trial)
+# dev.off()
+
+trial2<-as.data.frame(trial) %>% 
+  mutate(lon = rownames(trial)) %>% 
+  gather("lat","value", -lon)
+
+head(trial2)
+# this is NA when merged with 
+unique(trial2$lon)
+unique(trial2$lat)
+filter(trial2, lon == "-14.5", lat == "56.5")
+56.75 -14.75
+
+# unique(trial2$value)
+# 9.96921e+36 = land 
+# 0 = sea 
+# 1 to 10 model region codes
+
+trial2<-trial2 %>% 
+  mutate(value = ifelse(value > 30, NA, value)) # better to keep sea = 0 and land = NA I think 
+
+head(trial2)
+unique(trial2$value)
+
+nrow(trial2)
+
+```
+
+# Convert shapefile to raster and change projections 
+
+```{r}
+
+
+#### WARNING - check extent and crs .... not sure this si correct! 
+
+
+# Translate into raster to change projections as per effort file (0.25 to 0.75)
+trial3 <- rasterFromXYZ(trial2)
+extent(trial3) # need to change the long extent ... to -180; 180
+ext=extent(-180, 180, -90, 90)
+extent(trial3)<-ext
+# crs(trial3)<-crs(eez_base_raster) # what about crs ?? 
+
+pdf("/data/home/camillan/FishingEffort/Output/plot.pdf")
+plot(trial3)
+dev.off()
+
+# change resolution and extent - WARNING - not sure this is OK... 
+trial4 <- disaggregate(trial3, fact=2)
+res(trial4) # this should be OK 
+# extent(trial4)<-extent(eez_base_raster) # not sure you actually need this... 
+
+pdf("/data/home/camillan/FishingEffort/Output/plot.pdf")
+plot(trial4)
+dev.off()
+
+```
+
+# Convert raster to xyz object and export
+
+```{r}
+
+# now transform in xyz again # this should be the final product 
+
+# this should be 2 different approaches resulting in same output... but number of rows is not OK in first approach ... 
+
+xyz_file<-rasterToPoints(trial4) %>% 
+  as.data.frame() %>% 
+  rename(model_area = value,
+         lon = x, 
+         lat = y) %>% 
+  mutate(model_area = as.character(model_area))
+
+head(xyz_file)
+nrow(xyz_file)
+
+# these are different in terms of rows... 
+nrow(trial2)*4
+unique(xyz_file$model_area) # NAs have been removed... this is the def for this function. 
+
+xyz_file <- bind_cols(raster::xyFromCell(object = trial4, 
+                                       cell = 1:ncell(trial4)), 
+                    values(trial4)) %>% 
+  rename(model_area = `...3`,
+         lon = x,
+         lat = y)
+
+head(xyz_file)
+nrow(xyz_file)
+unique(xyz_file$model_area)
+
+nrow(filter(xyz_file, !is.na(model_area)))
+
+# add names 
+# Spatial mask for regional variable extraction. Coded as 1: Humboldt, 2: North Sea, 3: Mediterranean, 4: Baltic Sea, 5: SE_Australia, 6: East Bass Strait, 7: Cook Strait, 8: Hawaiian long line, 9: Benguela, 10: EBS Shelf
+
+unique(xyz_file$model_area)
+
+xyz_file<-xyz_file %>% 
+  mutate(model_area_name =  case_when(model_area == 0 ~ "Undefine_sea",
+            model_area == 1 ~ "Humboldt",
+            model_area == 2 ~ "North_Sea",
+            model_area == 3 ~ "Mediterranean",
+            model_area == 4 ~ "Baltic_Sea",
+            model_area == 5 ~ "SE_Australia",
+            model_area == 6 ~ "East_Bass_Strait",
+            model_area == 7 ~ "Cook_Strait",
+            model_area == 8 ~ "Hawaiian_long_line",
+            model_area == 9 ~ "Benguela",
+            model_area == 10 ~ "EBS_Shelf",
+            is.na(model_area) ~ "Land"))
+
+unique(xyz_file[,c(3,4)])
+nrow(xyz_file)
+head(xyz_file)
+
+xyz_file<-xyz_file %>% 
+  select(-model_area)
+
+# save final file 
+saveRDS(object = xyz_file, file =  file.path(yannick_dir, "Cells_LatLon_model_regions.rds"))
+
+```
+
