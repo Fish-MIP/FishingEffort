@@ -70,9 +70,17 @@ plot<-ggplot(trial, aes(y = NomActive, x = Year))+
 
 # WARNING something wrong with the land... 
 
-pdf("Output/plot.pdf")
+# compare with LME scale effort - Mediterranean sea (LME 26) and north sea (LME 22) are comparable in terms of shape file. 
+# WARNING SE_Australia much bigger than what it should be for your model (it's the whole SESSF and possibly OK for Beth - LME 41, 42, 43)
+# WARNING - when added all together some shape files overlap 
+# (e.g. SE_Australia and Bass strait) and the overlapping cells are allocated to one model only (i.e. bass strait)
+pdf("Output/regional_models.pdf")
 plot
 dev.off()
+
+# WARNING - LME 22 underestimated effort in this file (possibly due to land and low resolution of the mask?) - of 1/2! - trends kind of OK
+# WARNING - LME 26 similar to LME 22 
+
 
 
 # Compare to global data from LME file - same trend and magnitude. 
@@ -87,7 +95,7 @@ plot<-ggplot(trial, aes(y = NomActive, x = Year))+
   geom_point()+
   geom_line()
 
-pdf("Output/plot.pdf")
+pdf("Output/global_effort_fromRegionaModelMerging.pdf")
 plot
 dev.off()
 
@@ -103,7 +111,7 @@ plot<-ggplot(trial, aes(y = NomActive, x = Year))+
   geom_point()+
   geom_line()
 
-pdf("Output/plot1.pdf")
+pdf("Output/global_effort_fromLMEmerging.pdf")
 plot
 dev.off()
 

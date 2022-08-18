@@ -34,7 +34,7 @@ model_region_dir <- yannick_dir # regional mask from Ryan Dropbox/FishMIP_Region
 eez_file <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv")) %>% select(Lon, Lat, A_Code)
 unique(eez_file$Lon)
 eez_base_raster <- rasterFromXYZ(eez_file)
-pdf("/data/home/camillan/FishingEffort/Output/plot.pdf")
+pdf("/data/home/camillan/FishingEffort/Output/EEZ_masks.pdf")
 plot(eez_base_raster)
 dev.off()
 
@@ -62,7 +62,7 @@ colnames(trial)<-lat
 # trial[trial > 10]<-12
 # 
 # trial[!trial %in% c(1)]<-NA
-# pdf("/data/home/camillan/FishingEffort/Output/plot.pdf")
+# pdf("/data/home/camillan/FishingEffort/Output/regional_model_masks.pdf")
 # image(trial)
 # dev.off()
 
@@ -107,7 +107,7 @@ ext=extent(-180, 180, -90, 90)
 extent(trial3)<-ext
 # crs(trial3)<-crs(eez_base_raster) # what about crs ?? 
 
-pdf("/data/home/camillan/FishingEffort/Output/plot.pdf")
+pdf("/data/home/camillan/FishingEffort/Output/regional_model_masks.pdf")
 plot(trial3)
 dev.off()
 
@@ -116,7 +116,7 @@ trial4 <- disaggregate(trial3, fact=2)
 res(trial4) # this should be OK 
 # extent(trial4)<-extent(eez_base_raster) # not sure you actually need this... 
 
-pdf("/data/home/camillan/FishingEffort/Output/plot.pdf")
+pdf("/data/home/camillan/FishingEffort/Output/regional_model_masks.pdf")
 plot(trial4)
 dev.off()
 
