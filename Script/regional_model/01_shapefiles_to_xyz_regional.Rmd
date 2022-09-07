@@ -43,7 +43,6 @@ dev.off()
 nc_data <- nc_open(file.path(model_region_dir, "fishMIP_regional_mask_ISIMIP3.nc"))
 # print(nc_data)
 
-
 lon <- ncvar_get(nc_data, "lon")
 lat <- ncvar_get(nc_data, "lat", verbose = F)
 trial<-ncvar_get(nc_data,"fishMIP_MASK")
@@ -70,12 +69,12 @@ trial2<-as.data.frame(trial) %>%
   mutate(lon = rownames(trial)) %>% 
   gather("lat","value", -lon)
 
-head(trial2)
-# this is NA when merged with 
-unique(trial2$lon)
-unique(trial2$lat)
-filter(trial2, lon == "-14.5", lat == "56.5")
-56.75 -14.75
+# head(trial2)
+# # this is NA when merged with 
+# unique(trial2$lon)
+# unique(trial2$lat)
+# filter(trial2, lon == "-14.5", lat == "56.5")
+# # 56.75 -14.75
 
 # unique(trial2$value)
 # 9.96921e+36 = land 
@@ -85,10 +84,9 @@ filter(trial2, lon == "-14.5", lat == "56.5")
 trial2<-trial2 %>% 
   mutate(value = ifelse(value > 30, NA, value)) # better to keep sea = 0 and land = NA I think 
 
-head(trial2)
-unique(trial2$value)
-
-nrow(trial2)
+# head(trial2)
+# unique(trial2$value)
+# nrow(trial2)
 
 ```
 
@@ -96,16 +94,14 @@ nrow(trial2)
 
 ```{r}
 
-
 #### WARNING - check extent and crs .... not sure this si correct! 
-
 
 # Translate into raster to change projections as per effort file (0.25 to 0.75)
 trial3 <- rasterFromXYZ(trial2)
 extent(trial3) # need to change the long extent ... to -180; 180
 ext=extent(-180, 180, -90, 90)
 extent(trial3)<-ext
-# crs(trial3)<-crs(eez_base_raster) # what about crs ?? 
+# crs(trial3)<-crs(eez_base_raster) # what about crs? 
 
 pdf("/data/home/camillan/FishingEffort/Output/regional_model_masks.pdf")
 plot(trial3)
@@ -113,7 +109,7 @@ dev.off()
 
 # change resolution and extent - WARNING - not sure this is OK... 
 trial4 <- disaggregate(trial3, fact=2)
-res(trial4) # this should be OK 
+res(trial4)
 # extent(trial4)<-extent(eez_base_raster) # not sure you actually need this... 
 
 pdf("/data/home/camillan/FishingEffort/Output/regional_model_masks.pdf")
@@ -127,9 +123,6 @@ dev.off()
 ```{r}
 
 # now transform in xyz again # this should be the final product 
-
-# this should be 2 different approaches resulting in same output... but number of rows is not OK in first approach ... 
-
 xyz_file<-rasterToPoints(trial4) %>% 
   as.data.frame() %>% 
   rename(model_area = value,
@@ -145,7 +138,7 @@ nrow(trial2)*4
 unique(xyz_file$model_area) # NAs have been removed... this is the def for this function. 
 
 xyz_file <- bind_cols(raster::xyFromCell(object = trial4, 
-                                       cell = 1:ncell(trial4)), 
+                                         cell = 1:ncell(trial4)), 
                     values(trial4)) %>% 
   rename(model_area = `...3`,
          lon = x,

@@ -3,57 +3,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-# Install libraries in dependency order
-
-```{r}
-# install.packages("highr")
-# install.packages("stringi")
-# install.packages("stringr")
-# install.packages("knitr")
-# install.packages("purrr")
-# install.packages("fansi")
-# install.packages("utf8")
-# install.packages("R6")
-# install.packages("pkgconfig")
-# install.packages("tibble")
-# install.packages("dplyr")
-# install.packages("data.table")
-# install.packages("sp")
-# install.packages("sf")
-# 
-# # install.packages("splancs.so")
-# install.packages("splancs")
-# install.packages("dtplyr")
-# install.packages("geoR")
-# 
-# install.packages("digest")
-# install.packages("htmltools")
-# install.packages("ps")
-# install.packages("assertthat")
-# install.packages("gtable")
-# install.packages("processx")
-# install.packages("prettyunits")
-# install.packages("fs")
-# install.packages("xml2")
-# install.packages("colorspace")
-# install.packages("munsell")
-# install.packages("scales")
-# install.packages("backports")
-# install.packages("tidyverse")
-# install.packages("tictoc")
-# install.packages("vroom")
-# install.packages("raster")
-# install.packages("farver")
-# install.packages("labeling")
-# install.packages("ggpubr")
-# 
-# install.packages("here")
-# install.packages("RColorBrewer")
-
-
-
-```
-
 # Libraries
 
 ```{r}
@@ -77,89 +26,19 @@ library(RColorBrewer)
 select <- dplyr::select
 
 yannick_dir <- "/rd/gem/private/users/yannickr"
-
 original_effort_dir <- "/rd/gem/private/users/yannickr/effort_mapped_bycountry"
 
 aggregated_files_dir <- "/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_regional_models/"
 
 ```
 
-# Explore files and join the main data
+# Explore mask
 
 ```{r}
 
-# (EEZ <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv"))) 
-#  
-# #EEZ data is duplicated in places because of disputed claims to cells - just going to take the first country listed
-# (EEZ_disputes <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv")) %>% filter(DISPUTED==TRUE))
-# 
-# (take_first <- EEZ_disputes[!duplicated(EEZ_disputes[c("Lon", "Lat")]),])
-#      
-# (EEZ_adj <- bind_rows(EEZ %>% 
-#             filter(DISPUTED == FALSE),
-#           take_first) %>% 
-#   select(Lat, Lon, A_Code, Admin_Country) %>% 
-#    rename(eez_country_code = A_Code, 
-#           eez_country_name = Admin_Country) %>% 
-#    distinct())
-# 
-# united_coords <- EEZ_adj %>% unite("coords", c("Lon", "Lat"), sep = " ")
-# 
-# EEZ_adj <- EEZ_adj[-which(duplicated(united_coords[,"coords"])==TRUE),] %>% as.data.table() # remove duplicated EEZ records
-# EEZ_adj <- lazy_dt(EEZ_adj)
-# 
-# #check EEZ data - EEZs look ok
-# 
-# EEZ_xyz <- EEZ_adj %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=eez_country_code) %>%  select(x,y,z)  
-# EEZ_raster <- raster::rasterFromXYZ(EEZ_xyz)
-# 
-# ggplot(data = EEZ_xyz)+
-#   geom_tile(aes(x=x, y=y, fill=z)) + 
-#   scale_fill_gradientn(colours = RColorBrewer::brewer.pal(n = 9, name = "Spectral"))
-# 
-# ggsave(filename = here("Explore/cottrell-explore/eez_wo_duplicates.jpg"), dpi=300, device = "jpg", width = 9, height = 5)
-# 
-# #LME data
-# (LMEs <- fread(file.path(yannick_dir, "LMESeq.csv")))
-# LMEs <- lazy_dt(LMEs)
-# 
-# 
-# #FAO regions data
-# (FAO_regions <- readRDS(file.path(yannick_dir, "Cells_LatLon_FAO_regions.rds")) %>% 
-#     rename(Lon=x, Lat = y) %>% mutate(fao_area= as.double(fao_area)) %>% as.data.table())
-# 
-# FAO_regions <- lazy_dt(FAO_regions)
-# 
-# 
-# # Looking at the CNumber - this appears the be the iso3n code for the country. This is often the name the same as the admin country but is different when the land masses are territories of other countries
-# 
-# 
-# #The data have different rows. Want to make sure they line up
-# nrow(EEZ_adj) #179904
-# nrow(as_tibble(LMEs)) #259200
-# nrow(FAO_regions) #229369
-# 
-# 
-# #Some LME data are around that have no FAO or EEZ data
-# (all_spatial_layers <- 
-#   full_join(x = full_join(x = LMEs %>% select(-Seq), y = FAO_regions, by = c("Lon", "Lat")), 
-#             y = EEZ_adj %>% select(Lon, Lat, eez_country_code, eez_country_name), by = c("Lon", "Lat")) %>% as_tibble()
-# )
-# 
-# missing_fao_eez <- 
-#   all_spatial_layers %>% 
-#   filter(is.na(fao_area)) %>% #29831 where FAO areas are NA but LME are not
-#   filter(is.na(eez_country_code)) #29830 where EEZ are NA but LME are not - this does not change depending on order. So there is one cell where the is LME data and EEZ data but not FAO area data
-
-
-# CN only need Cells_LatLon_model_regions.rds and treat as if it was Cells_LatLon_FAO_regions.rds (same format...)
-
 (Model_region <- readRDS(file.path(yannick_dir, "Cells_LatLon_model_regions.rds")) %>% rename(Lon=lon, Lat = lat) %>% as.data.table())
-
-unique(Model_region$Lon)
-
+# unique(Model_region$Lon)
 Model_region <- lazy_dt(Model_region)
-
 
 ```
 
@@ -185,8 +64,8 @@ join_effort_data <- function(this_file_name){
     these_data <- fread(this_source_path)
     these_data <- lazy_dt(these_data)
     
-    # # WARNING - there is land data here - why?? 
-    # # figure out land - I think it's the coarser resolution used by Ryan's map??
+    # # WARNING - there is land data here - why?
+    # # figure out land - I think it's the coarser resolution used by Ryan's map?
     # # use original_effort_files[[2]] for this
     # trial2 <- these_data  %>%
     #   left_join(Model_region, by=c("Lat", "Lon")) %>% 
@@ -194,49 +73,16 @@ join_effort_data <- function(this_file_name){
     #   # filter(model_area_name == "Land") %>% 
     #   select(Lat, Lon,NomActive, model_area_name) %>% 
     #   unique() 
-    # # 9.75 98.25 # these are mostly coastal. is this Decimal degrees or degrees, minutes and seconds or degrees and decimal minutes? 
-    # 
-    # # See if points in regional model are are actually in this area
+    # # 9.75 98.25 # these are mostly coastal. 
+    # # See if points in regional model are actually in this area
     # unique(trial2$model_area_name)
     # # original_effort_files[[110]]
     # # North sea 59.75 -1.25 (lat, lon) # OK corresponds to NS on google map
     # filter(trial2, model_area_name == "North_Sea")
     
-    
-    #data.table approach
-    #tells data.table how to join
-    # 
-    # setkey(these_data, Lon, Lat)
-    # setkey(LMEs, Lon, Lat)
-    # setkey(EEZ_adj, Lon, Lat)
-    # setkey(FAO_regions, Lon, Lat)
-    # 
-    # #make the joins of LMEs, FAO areas, and EEZs
-    # merge_1 <- LMEs[these_data, on = c("Lon", "Lat")]
-    # merge_2 <- FAO_regions[merge_1, on = c("Lon", "Lat")]
-    # merge_3 <- EEZ_adj[merge_2, on = c("Lon", "Lat")] #merge 3 has retained the same number of rows
-    # #group by all variables and sum the different effort forms, adding year at the end
-    # 
-    # this_aggregated_data <- 
-    #   cbind(
-    #     nom_active_gr <- merge_3[, .(NomActive= sum(NomActive, na.rm = TRUE)),
-    #                              by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"NomActive"],
-    #     eff_active_gr <-  merge_3[, .(EffActive= sum(EffActive, na.rm = TRUE)), 
-    #                               by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"EffActive"],
-    #     nv_gr <- merge_3[, .(NV= sum(NV, na.rm = TRUE)),
-    #                      by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"NV"],
-    #     p_gr <- merge_3[, .(P= sum(P, na.rm = TRUE)), 
-    #                     by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"P"],
-    #     gt_group <- merge_3[, .(GT= sum(GT, na.rm = TRUE)), 
-    #                         by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"GT"]
-    #   )[, `:=`(Year = Year)]
-    
     #dtplyr approach
     these_aggregated_data <-
       these_data %>%
-      # left_join(LMEs, by=c("Lat", "Lon")) %>%
-      # left_join(EEZ_adj, by=c("Lat", "Lon")) %>%
-      # left_join(FAO_regions, by=c("Lat", "Lon")) %>%
       left_join(Model_region, by=c("Lat", "Lon")) %>% 
       group_by(model_area_name, SAUP, Gear, FGroup, Sector) %>%
       summarise(NomActive = sum(NomActive, na.rm = TRUE),
@@ -257,6 +103,7 @@ join_effort_data <- function(this_file_name){
 # Run the code on all 30,000 files and write them to folder
 
 ```{r}
+
 #compressed_effort_files <- list.files(file.path(compressed_effort_dir), full.names = TRUE)
 original_effort_files <- list.files(file.path(original_effort_dir), pattern = ".csv")
 
@@ -298,7 +145,6 @@ map(newly_written_files[[8]], fread)
 ```{r}
 
 combined_aggregated_effort <- rbindlist(mclapply(X = newly_written_files, FUN = fread, mc.cores = 40))
-
 fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated_regional_models.csv"))
 
 ```

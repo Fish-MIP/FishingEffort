@@ -81,8 +81,6 @@ dev.off()
 # WARNING - LME 22 underestimated effort in this file (possibly due to land and low resolution of the mask?) - of 1/2! - trends kind of OK
 # WARNING - LME 26 similar to LME 22 
 
-
-
 # Compare to global data from LME file - same trend and magnitude. 
 # Land is similar to sea possibly becasue most effort is in coastal and this land relates to coastal?? 
 # this file 
