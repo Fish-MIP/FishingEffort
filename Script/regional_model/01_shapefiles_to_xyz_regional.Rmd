@@ -84,10 +84,6 @@ trial2<-as.data.frame(trial) %>%
 trial2<-trial2 %>% 
   mutate(value = ifelse(value > 30, NA, value)) # better to keep sea = 0 and land = NA I think 
 
-# head(trial2)
-# unique(trial2$value)
-# nrow(trial2)
-
 ```
 
 # Convert shapefile to raster and change projections 
