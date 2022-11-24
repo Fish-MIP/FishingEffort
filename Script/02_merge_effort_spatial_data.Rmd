@@ -1,4 +1,6 @@
 ---
+editor_options: 
+  chunk_output_type: console
 ---
 Install libraries in dependency order
 ```{r}

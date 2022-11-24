@@ -403,6 +403,8 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     )
     }
     
+    data_for_plot_for_FAOreport = final_df_plot # Added to play with plots for FAO report
+    
     # create data for annotation 
     yMax = max(filter(final_df, Type == "NomActive")$Value, na.rm = TRUE)
     # ann_text <- data.frame(Year = c(1841+10,1861+15,1961+15), Value = rep(yMax,3), lab = c("Spin-up","Transition","Experiment"), group = rep("Effort (nominal, DkW)", 3), Data = rep("Reconstructed values", 3), Considered = rep("Yes", 3))
@@ -434,7 +436,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
       }}
     
     # save outputs 
-    return(list(reconstructed_effort_LME = final_df, plot_reconstructed_effort_LME = plot, chechDataUsed = chechDataUsed)) 
+    return(list(reconstructed_effort_LME = final_df, plot_reconstructed_effort_LME = plot, chechDataUsed = chechDataUsed, data_for_plot_for_FAOreport = data_for_plot_for_FAOreport)) 
     
   # } # END if data exist 
   
@@ -654,6 +656,7 @@ if(df_kappa ==6){ # better capture trends
 
 reconstructed_effort_LME_war_ref<-list()
 plot_reconstructed_effort_LME_war_ref<-list()
+data_for_plot_for_FAOreport<-list()
 
 tic()
 for(i in 1:length(toKeep)){
@@ -673,6 +676,9 @@ for(i in 1:length(toKeep)){
 
   plot_reconstructed_effort_LME_war_ref[[i]]<-b$plot_reconstructed_effort_LME
   names(plot_reconstructed_effort_LME_war_ref)[i]<-toKeep[i]
+  
+  data_for_plot_for_FAOreport[[i]]<-b$data_for_plot_for_FAOreport # added to play with plots for FAO report
+  names(data_for_plot_for_FAOreport)[i]<-toKeep[i]
   
 }
 toc() # 103.332 sec elapsed
@@ -838,16 +844,86 @@ if(df_kappa == 6){
 #   name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa3_discards.pdf"
 # }
 
-pdf(name, height = 8, width = 6)
-marrangeGrob(grobs = plot_reconstructed_effort_LME_war_ref, nrow=2, ncol=1)
-dev.off()
+# # name = "Output/justChecking.pdf"
+# pdf(name, height = 8, width = 6)
+# marrangeGrob(grobs = plot_reconstructed_effort_LME_war_ref, nrow=2, ncol=1)
+# dev.off()
 
 # # check 
 # reconstructed_effort_LME_war_ref[[1]]
 # reconstructed_effort_LME_war_ref[[65]]
 
-### SAVE DATA HERE as you need to create a plot of effort and gfdl intpp for the north sea in plotGFDLinputs 
-# save.image(file = "~/FishingEffort/Data/temp_effort.RData")
+### SAVE DATA HERE as you need to create a plot of effort and gfdl intpp for the north sea in plotGFDLinputs. also need this for FAO report plots. 
+save(reconstructed_effort_LME_war_ref, plot_reconstructed_effort_LME_war_ref, data_for_plot_for_FAOreport, file = "~/FishingEffort/Data/temp_effort.RData")
+
+```
+
+## FAO report plots 
+
+```{r}
+
+# Plots for FAO report
+# rm(list=ls())
+# load("~/FishingEffort/Data/temp_effort.RData")
+
+# for plotting 
+# data_for_plot_for_FAOreport
+
+# consider 2 LME only? 
+# catch-based LME 50, 51, 47,39, 22,23, 14 (Patagonian shelf, better),15 (south Brazil shelf),16 (east Brazil shelf)
+# effort-based LME 26, 27 (canary current), 32 (Arabian Sea), 33, 34 (Bay of bengal), 36 (South China Sea), 37 ...
+# plot_reconstructed_effort_LME_war_ref[[15+1]]
+
+# names(data_for_plot_for_FAOreport)
+SBZ<-data_for_plot_for_FAOreport[[15+1]]
+CC<-data_for_plot_for_FAOreport[[27+1]]
+
+# FROM INSIDE FUNCION... 
+# now manul but can be loop if lots of changes... 
+
+# create data for annotation 
+yMax = max(filter(SBZ, group == "Effort (nominal, DkW)")$Value, na.rm = TRUE)
+
+ann_text <- data.frame(Year = c(1841+10,1961+15), Value = rep(yMax,2), lab = c("Transition","Experiment"), group = rep("Effort (nominal, DkW)", 2), Data = rep("Reconstructed values", 2), Considered = rep("Yes", 2))
+    
+plot_SBZ<-ggplot(data = SBZ, aes(x = Year, y = Value, group = Data, color = Data, shape=Considered)) +
+  ggtitle("Patagonian Shelf")+
+  facet_wrap(~group, scales = "free", nrow = 2)+
+  annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
+  annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
+  geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
+  geom_point(data = filter(SBZ, Data == "Reconstructed values"),size=1)+
+  geom_line(data = filter(SBZ, Data == "GAM predictions")) +
+  scale_color_manual(values = c("blue", "black"), drop = FALSE)+
+  scale_fill_chris()+
+  my_theme+
+  geom_vline(xintercept=1945, linetype="dashed", color = "red", size=0.5)+
+  geom_vline(xintercept=1955, linetype="dashed", color = "red", size=0.5)
+
+yMax = max(filter(CC, group == "Effort (nominal, DkW)")$Value, na.rm = TRUE)
+
+ann_text <- data.frame(Year = c(1841+10,1961+15), Value = rep(yMax,2), lab = c("Transition","Experiment"), group = rep("Effort (nominal, DkW)", 2), Data = rep("Reconstructed values", 2), Considered = rep("Yes", 2))
+   
+plot_CC<-ggplot(data = CC, aes(x = Year, y = Value, group = Data, color = Data, shape=Considered)) +
+  ggtitle("Canary Current")+
+  facet_wrap(~group, scales = "free", nrow = 2)+
+  annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
+  annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
+  geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
+  geom_point(data = filter(CC, Data == "Reconstructed values"),size=1)+
+  geom_line(data = filter(CC, Data == "GAM predictions")) +
+  scale_color_manual(values = c("blue", "black"), drop = FALSE)+
+  scale_fill_chris()+
+  my_theme+
+  geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)
+
+## END 
+
+# install.packages("patchwork")
+library(patchwork)
+pdf("Output/LMEeffortFAOreport.pdf", height = 8, width = 6)
+plot_SBZ/plot_CC+plot_annotation(tag_levels = 'A')
+dev.off()
 
 ```
 
@@ -859,7 +935,7 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
   
   # # # trial
   # historical_effort = decision[[1]] # effort from 1841 to 2017 at LME level from analysis above - missing groups (eez, gear, fgroup, saup, sector, etc.)
-  # recent_effort = recent_effort # effort from 1950 to 2017 with all groups 
+  # recent_effort = recent_effort # effort from 1950 to 2017 with all groups
   # toKeep = toKeep[[1]]
   # reference = "1950-1960"
   
@@ -1065,16 +1141,17 @@ for(i in 1:length(decision)){
 # plot_reconstructed_effort_ref
 
 # show North sea 
-plot_reconstructed_effort_ref[[23]]
+# plot_reconstructed_effort_ref[[23]]
 
 # save final data and plots ----
 
 # check empty LME and remove from the list - it should be none
 plot_reconstructed_effort_ref<-plot_reconstructed_effort_ref[lapply(plot_reconstructed_effort_ref,length)>0]
 
-pdf("Output/reconstructed_effort_for_spinup_JeromeComments_1841_fixedValues_kappaLME31.pdf", height = 8, width = 6)
-marrangeGrob(grobs = plot_reconstructed_effort_ref, nrow=2, ncol=1)
-dev.off()
+# pdf("Output/reconstructed_effort_for_spinup_JeromeComments_1841_fixedValues_kappaLME31.pdf", height = 8, width = 6)
+# # pdf("Output/justChecking.pdf", height = 8, width = 6)
+# marrangeGrob(grobs = plot_reconstructed_effort_ref, nrow=2, ncol=1)
+# dev.off()
 
 # if total cacthes included discards - no need see comment bove  
 # pdf("Output/reconstructed_effort_for_spinup_JeromeComments_discards.pdf", height = 8, width = 6)
@@ -1085,11 +1162,18 @@ dev.off()
 
 reconstructed_effort_ref_all<-do.call(rbind.data.frame, reconstructed_effort_ref)
 
+### SAVE DATA HERE for FAO report plots. 
+# save(reconstructed_effort_ref_all, file = "~/FishingEffort/Data/temp_effort_EEZ.RData")
+
 ```
 
-## check EEZ
+## FAO EEZ plot and check
 
 ```{r}
+
+# # # Plots for FAO report
+# rm(list=ls())
+# load("~/FishingEffort/Data/temp_effort_EEZ.RData")
 
 # # check LME and EEZ interactions 
 # trial<-effort %>% 
@@ -1098,12 +1182,10 @@ reconstructed_effort_ref_all<-do.call(rbind.data.frame, reconstructed_effort_ref
 # 
 # trial<-arrange(trial, eez_country_name, LME)
 # # calculations below are done at the LME level, in each LME there are multiple EEZ and that's OK. 
-# # but in some EEZ there are multiple LME and that could be a problem... 
+# # but in some EEZ there are multiple LME and that could be a problem... not really ... 
 # filter(trial, eez_country_name == "France")
 
 eez<-split(reconstructed_effort_ref_all, reconstructed_effort_ref_all$eez_country_name)
-
-# names(eez)
 
 trial_plot_list<-list()
 
@@ -1122,53 +1204,95 @@ for(i in 1:length(eez)){
   
 }
 
-pdf("Output/EEZ.pdf", height = 8, width = 6)
-marrangeGrob(grobs = trial_plot_list, nrow=2, ncol=1)
-dev.off()
+# pdf("Output/EEZ.pdf", height = 8, width = 6)
+# marrangeGrob(grobs = trial_plot_list, nrow=2, ncol=1)
+# dev.off()
 
 # check eez
-# most evidently problematic - kenia (in LME 31 and LME0)
+# most evidently problematic - Kenya (in LME 31 and LME0) - LME 31 is somehow problematic as it shows a bump between 1949 and 1950 but with different kappa it shows high effort before 1950, many trials and this seems the best solution so far (see parameterisation above). Most of the bump is "absorbed by Kenya" which is not good for this EEZ but OK if you look at the broader picture - see Kenya.pdf below. Alos LME31 bump not too bad compared to later effort variability. 
 # plot proportional contribution of each EEZ to LME 31 (or 0)
 
 a<-reconstructed_effort_ref_all %>% 
   filter(eez_country_name == "Kenya")
+
+unique(a$LME) # 0, 31
 
 nLME<- 31
 
 a<-reconstructed_effort_ref_all %>% 
   filter(eez_country_name == "Haiti")
 
+unique(a$LME) # 12
+
 a<-reconstructed_effort_ref_all %>% 
   filter(eez_country_name == "Cuba")
+
+unique(a$LME) # 5, 12
 
 nLME<- 12
 
 a<-reconstructed_effort_ref_all %>% 
   filter(eez_country_name == "Angola")
 
-unique(a$LME)
+unique(a$LME) # 28, 29
 
 nLME<- 29
 
+# to plot 
+nLME<- 36 # 36 - South China Sea, 34 Bay of Bengal 
+
 data_plot_trial<-reconstructed_effort_ref_all %>% 
   filter(LME == nLME) %>% 
-  # filter(eez_country_name %in% c("Cuba", "Haiti","Venezuela")) %>% 
   group_by(Year, eez_country_name, LME) %>% 
   summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
   ungroup()
 
+# FAO PLOT same quality as effort by LME ....
+yMax = max(data_plot_trial$NomActive, na.rm = TRUE)
+
+ann_text <- data.frame(Year = c(1841+10,1961+15), eez_country_name = rep(unique(data_plot_trial$eez_country_name)[1], 2), LME = unique(data_plot_trial$LME), NomActive = rep(yMax,2), lab = c("Transition","Experiment"))
+   
 plot<-ggplot(data = data_plot_trial, aes(x = Year, y = NomActive, group = eez_country_name, color = eez_country_name)) +
-  geom_line() +
-  geom_point(size=0.3)+
-  ggtitle(paste("LME", nLME, sep = " "))+
+  # ggtitle(paste("LME", nLME, sep = " "))+
+  ggtitle("South China Sea")+
+  ylab("Fishing effort (DkW)") +
+  scale_color_discrete(name = "Exclusive Economic Zone", labels = c("Brunei", "China", "Indonesia", "Malaysia", "Philippines", "Taiwan", "Vietnam"))+#, values = c("blue", "red", "yellow", "orange", "pink", "purple", "black")) +
+  annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
+  annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
+  geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 3)+
   geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)+
   geom_vline(xintercept=1960, linetype="dashed", color = "red", size=0.5)+
+  geom_line() +
+  geom_point(size=1)+
   my_theme
-  # facet_wrap(~eez_country_name, scale = "free")
 
-# pdf("Output/Angola.pdf", height = 10, width = 12) # height = 8, width = 6)
+# # if e.g. LME 31 
+# pdf("Output/Kenya.pdf", height = 10, width = 12) # height = 8, width = 6)
 # plot
-# dev.off()
+# dev.off() # big jump for Kenya but not that bad if looking at the LME-wide picture - low effort for Kenya overall 
+
+# if FAO PLOT
+pdf("Output/EEZeffortFAOreport.pdf", height = 4, width = 7) # height = 8, width = 6)
+plot
+dev.off() 
+
+### check that effort datqa for LME 31 (or anyLME) matches across datasets  
+head(reconstructed_effort_ref_all) # from EEZ etc allocation
+trial31<-filter(reconstructed_effort_ref_all, LME == 31)
+trial31<-trial31 %>% 
+  group_by(Year) %>% 
+  summarise(effort = sum(NomActive))
+
+head(trial31)
+
+head(reconstructed_effort_LME_war_ref) # from LME reconstruction 
+trial31B<-reconstructed_effort_LME_war_ref$`31`
+trial31B<-trial31B %>% 
+  filter(Type == "NomActive") %>% 
+  group_by(Year) %>% 
+  summarise(effort = sum(Value))
+
+head(trial31B)
 
 ```
 
@@ -1189,7 +1313,7 @@ reconstructed_effort_ref_all<-reconstructed_effort_ref_all %>%
 
 yannick_dir <- "/rd/gem/private/users/yannickr"
 # after FishMIP meeting 
-fwrite(x = reconstructed_effort_ref_all, file.path(yannick_dir, "effort_histsoc_1841_2017.csv"))
+# fwrite(x = reconstructed_effort_ref_all, file.path(yannick_dir, "effort_histsoc_1841_2017.csv"))
 
 # fwrite(x = reconstructed_effort_ref_all, file.path(yannick_dir, "effort_histsoc_1850_2017.csv"))
 # if total cacthes included discards - no need see commetn above 

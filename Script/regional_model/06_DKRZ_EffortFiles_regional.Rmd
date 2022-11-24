@@ -74,14 +74,14 @@ effort2<-effort %>%
 
 # rearrange columns 
 head(effort2)
-effort2<-effort2[,c("Year","Sector", "model_area_name","SAUP", "Gear", "FGroup", "NomActive", "Phase")]
+effort2<-effort2[,c("Year","Sector", "region","SAUP", "Gear", "FGroup", "NomActive", "Phase")]
 head(effort2)
 
 catch2<-catch %>% 
-  filter(Year <= 2004) 
+  filter(Year <= 2004, !is.na(region)) 
 
 head(catch2)
-catch3<-catch2[,c("Year","Sector", "model_area_name","SAUP", "FGroup", "Reported", "IUU", "Discards")]
+catch3<-catch2[,c("Year","Sector", "region","SAUP", "FGroup", "Reported", "IUU", "Discards")]
 head(catch3)
 
 # final effort 
@@ -93,5 +93,4 @@ fwrite(x = catch3, file.path(dkrz, "calibration_catch_histsoc_1850_2004_regional
 
 # upload to DKRZ
 # scp -r DKRZ_EffortFiles/* b381217@levante.dkrz.de:/home/b/b381217/temp_effort/
-
 ```

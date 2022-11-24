@@ -58,14 +58,18 @@ catch<-hist %>%
 ### use approach from script 02 to merge catch with mask ----
 
 yannick_dir <- "/rd/gem/private/users/yannickr"
-(Model_region <- readRDS(file.path(yannick_dir, "Cells_LatLon_model_regions.rds")) %>% rename(Lon=lon, Lat = lat) %>% as.data.table())
-Model_region <- lazy_dt(Model_region)
+# (Model_region <- readRDS(file.path(yannick_dir, "Cells_LatLon_model_regions.rds")) %>% rename(Lon=lon, Lat = lat) %>% as.data.table())
+# Model_region <- lazy_dt(Model_region)
+
+# Denisse's version of the mask 
+Model_region <- read_csv("/rd/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3a.csv") %>% 
+  lazy_dt()
 
 tic()
 catch2 <- catch %>%
   select(-Seq) %>% 
   left_join(Model_region, by=c("Lat", "Lon")) %>% 
-  group_by(Year,CNumber,FGroup, model_area_name,Sector) %>%
+  group_by(Year,CNumber,FGroup, region, Sector) %>%
   summarise(Reported = sum(Reported, na.rm = TRUE),
             IUU = sum(IUU, na.rm = TRUE),
             Discards = sum(Discards, na.rm = TRUE)) %>% 

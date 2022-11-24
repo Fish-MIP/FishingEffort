@@ -22,12 +22,10 @@ library(raster)
 library(here)
 library(RColorBrewer)
 
-
 select <- dplyr::select
 
 yannick_dir <- "/rd/gem/private/users/yannickr"
 original_effort_dir <- "/rd/gem/private/users/yannickr/effort_mapped_bycountry"
-
 aggregated_files_dir <- "/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_regional_models/"
 
 ```
@@ -36,9 +34,45 @@ aggregated_files_dir <- "/rd/gem/private/users/yannickr/effort_mapped_by_country
 
 ```{r}
 
-(Model_region <- readRDS(file.path(yannick_dir, "Cells_LatLon_model_regions.rds")) %>% rename(Lon=lon, Lat = lat) %>% as.data.table())
-# unique(Model_region$Lon)
-Model_region <- lazy_dt(Model_region)
+# # older mask version 
+# (Model_region <- readRDS(file.path(yannick_dir, "Cells_LatLon_model_regions.rds")) %>% rename(Lon=lon, Lat = lat) %>% as.data.table())
+# # unique(Model_region$Lon)
+# Model_region <- lazy_dt(Model_region)
+
+# Denisse's version of the mask
+mask_df <- read_csv("/rd/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3a.csv") %>%
+  lazy_dt()
+# 
+# ## PROBLEM OF MISSING DATA WHEN USING DENISSE"S MASK 
+# # check numer of grid cell to figure out effort discrepancy at global level 
+# model_region_cells<-Model_region %>% 
+#   select("Lon","Lat") %>% 
+#   unique() %>% 
+#   as.data.frame()
+# 
+# mask_df_cells<-mask_df %>% 
+#   select("Lon","Lat") %>% 
+#   unique() %>% 
+#   as.data.frame()
+# 
+# nrow(model_region_cells)
+# nrow(mask_df_cells)
+# 
+# sort(unique(model_region_cells$Lon))
+# sort(unique(mask_df_cells$Lon))
+# setdiff(sort(unique(model_region_cells$Lon)), sort(unique(mask_df_cells$Lon))) # lots missing in Denisse's mask - why? 
+# 
+# sort(unique(model_region_cells$Lat))
+# sort(unique(mask_df_cells$Lat))
+# setdiff(sort(unique(model_region_cells$Lat)), sort(unique(mask_df_cells$Lat))) # lots of lats missing in Denisse's mask - only considering 
+# 
+# # add missing coordinates which should be the ones outside regions and should have nbeen included into the calcaultion anyways... ARRIVATA QUI ... 
+# missing_coordinates<-setdiff(model_region_cells, mask_df_cells)
+# missing_coordinates$region<-outside
+# 
+# data<-as.data.frame(mask_df)
+# unique(data$region)
+# 
 
 ```
 
@@ -53,9 +87,12 @@ join_effort_data <- function(this_file_name){
   # this_file_name<-original_effort_files[[2]]
   # # end trial 
   
-  this_source_path <- file.path("/rd/gem/private/users/yannickr/effort_mapped_bycountry", this_file_name)
+  # this_source_path <- file.path("/rd/gem/private/users/yannickr/effort_mapped_bycountry", this_file_name)
+  # 
+  # this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_regional_models/", "aggregated_regional_model_", this_file_name)
   
-  this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_regional_models/", "aggregated_regional_model_", this_file_name)
+  this_source_path <- file.path(original_effort_dir, this_file_name)
+  this_destination_path <- paste0(aggregated_files_dir, "aggregated_regional_model_", this_file_name)
   
   # if(file.exists(this_destination_path)){ # WARNING - CN why this?? files do not exist here. 
     
@@ -83,8 +120,8 @@ join_effort_data <- function(this_file_name){
     #dtplyr approach
     these_aggregated_data <-
       these_data %>%
-      left_join(Model_region, by=c("Lat", "Lon")) %>% 
-      group_by(model_area_name, SAUP, Gear, FGroup, Sector) %>%
+      left_join(mask_df, by=c("Lat", "Lon")) %>% # mask_df
+      group_by(region, SAUP, Gear, FGroup, Sector) %>% # region
       summarise(NomActive = sum(NomActive, na.rm = TRUE),
                 EffActive = sum(EffActive, na.rm = TRUE),
                 NV= sum(NV, na.rm = TRUE),
@@ -133,7 +170,9 @@ toc()
 
 ```{r}
 #check the files
-newly_written_files <- list.files(file.path(yannick_dir, "effort_mapped_by_country_aggregated_regional_models"), full.names = TRUE)
+# newly_written_files <- list.files(file.path(yannick_dir, "effort_mapped_by_country_aggregated_regional_models"), full.names = TRUE)
+
+newly_written_files <- list.files(aggregated_files_dir, full.names = TRUE)
 
 # pick one randomly 
 map(newly_written_files[[8]], fread)
@@ -144,8 +183,33 @@ map(newly_written_files[[8]], fread)
 
 ```{r}
 
+# Denisse's mask 
 combined_aggregated_effort <- rbindlist(mclapply(X = newly_written_files, FUN = fread, mc.cores = 40))
-fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated_regional_models.csv"))
+fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated_regional_models_trial2.csv")) # once this works come back rename this file by deleting the trial2 extension and delete other versions from server
+
+# # NEW VESION With updated MASK built by Denisse - CAN DELETE AS YOU ARE NOW RUNNING THE WHOLE STEP2  
+# #check the files - using another version of 01 and 02 - see github: https://github.com/Fish-MIP/FishMIP_extracting-data/blob/main/Scripts/Extracting_FishMIP_data.md
+# # Getting list of all files saved in memory
+# aggregated_files_dir <- "/rd/gem/private/users/ldfierro/effort_mapped_by_country_aggregated/"
+# newly_written_files <- list.files(aggregated_files_dir, full.names = TRUE, recursive = T)
+# yannick_dir<- "/rd/gem/private/users/yannickr"
+# out_file <- paste(yannick_dir, "all_effort_aggregated_regional_models_trial.csv", sep = "/") 
+# 
+# library(tidyverse)
+# library(parallel)
+# library(data.table)
+# library(dtplyr)
+# 
+# # # Merging all files into a single file - Parallelising work
+# # # CN very slow 
+# # mclapply(X = newly_written_files, FUN = read_csv, mc.cores = 40) %>% 
+# #   # Unlisting and creating a single data frame
+# #   bind_rows() %>%
+# #   # Saving resulting merged file to disk
+# #   write_csv(out_file)
+# 
+# combined_aggregated_effort <- rbindlist(mclapply(X = newly_written_files, FUN = fread, mc.cores = 40))
+# fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated_regional_models_trial.csv"))
 
 ```
 

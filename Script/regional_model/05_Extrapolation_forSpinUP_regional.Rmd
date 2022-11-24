@@ -40,7 +40,7 @@ effort<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_region
 
 # Remove Unknown_EEZ before calcualting spin-up. See global file for note 
 effort<-effort %>% 
-  filter(FGroup != "Unknown_EEZ")
+  filter(FGroup != "Unknown_EEZ", !is.na(region))
 
 ```
 
@@ -49,6 +49,8 @@ effort<-effort %>%
 ```{r catch, echo = FALSE}
 
 catch<-read_csv("/rd/gem/private/users/yannickr/catch_histsoc_1869_2017_regional_models.csv")
+catch<-catch %>% 
+  filter(!is.na(region))
 
 # calculate catch as sum of reported and IUU, discards are generally not considered
 catch$catch_tot<-catch$Reported + catch$IUU
@@ -76,7 +78,7 @@ my_theme<-theme_bw()+
 
 ```{r extrapolate, echo = FALSE}
 
-toKeep<-sort(unique(effort$model_area_name))
+toKeep<-sort(unique(effort$region))
 
 effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   
@@ -88,7 +90,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   # reference = "1945-1955"
 
   effort_extr<-effort %>% 
-    filter(model_area_name %in% toKeep) %>% 
+    filter(region %in% toKeep) %>% 
     group_by(Year) %>% 
     summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
     ungroup()
@@ -96,7 +98,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   maxYearEffort<-max(effort_extr$Year) 
   
   catch_all <- catch %>% 
-    filter(model_area_name %in% toKeep) %>% 
+    filter(region %in% toKeep) %>% 
     group_by(Year) %>% 
     summarise(catch_tot = sum(catch_tot, na.rm = TRUE))
   
@@ -383,8 +385,29 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
 # if catch: include war, ref 1945-1955
 # if effort - it does not matter
 
+# remove outliers first??
+# Chatham.Rise.LL.NZ (but used catches for spin up) - and spin-up OK 
+# Cook.Strait as above
+# Prydz.Bay (yes need to remove)
+# Tasman.Golden.Bays.NZ (yes need to remove)
+
+# REMOVE OUTLIERS AS PER BELOW # WARNING to do!
+explore<-effort %>%
+  dplyr::filter(region == "Prydz.Bay") %>%
+  group_by(region, Year) %>% 
+  summarise(NomActive = sum(NomActive))
+
+max<-max(explore$NomActive)
+max<-mean(explore$NomActive)+(2*sd(explore$NomActive))
+explore %>% filter(NomActive >= max)
+
+effort %>% filter(region == "Prydz.Bay", Year %in% c("1978", "1979"))
+
+# end removing outliers 
+
+
 # fix the k argument in GAM (based on war_param = "include" and reference = 1950)
-toKeep<-sort(unique(effort$model_area_name))
+toKeep<-sort(unique(effort$region))
 
 df_kappa = 6 
 # with kappa = 3 bumps in effort disappear and we force the perfect logarithmic shape on the catch/effort data, but GAM in most cases does not fit the data particularly well (as does not follow bumps ...)
@@ -394,12 +417,21 @@ if(df_kappa ==6){ # better capture trends
   # but avoid an increase in effort from 1950 to 1841: 
   kappa_values<-data.frame(lme = toKeep, kappa = 6)  
   # NEED TO MODIFY KAPPA IF EFFORT TRENDS NOT AS EXPECTED 
+  kappa_values[c(6,8,14,17,21), 2]<-5
+  kappa_values[c(6,14), 2]<-4
   
 }else if (df_kappa == 3){ # assumes a "perfect" logistic 
   
   kappa_values<-data.frame(lme = toKeep, kappa = 3)
 
 }
+
+# # REGION needed adjusments (but see if removing outliers is ok)
+# eastern bass strait 6
+# eastern scotial shelf 7
+# NorthernHumboldt 14
+# Prydz.Bay 17
+# Tasman.Golden.Bays.NZ 21
 
 reconstructed_effort_LME_war_ref<-list()
 plot_reconstructed_effort_LME_war_ref<-list()
@@ -426,15 +458,6 @@ for(i in 1:length(toKeep)){
 }
 toc() # 
 
-# POSSIBLE WARNINGS - due to kappa  
-
-# 1: Step size truncated due to divergence 
-# inside gam.fit in the mgcv
-# package, the model you have specified is having difficulty with your
-# data. need to inspect the details of the model fit. lowered kappa above for this LME 
-
-# MIGHT NEED TO ADJUST SPECIFIC REGION MANUALLY AS PER GLOBAL ANALYSIS (LME-SCALE)
-
 # save and print plots ----
 
 # check empty LME and remove from the list - it should be none
@@ -443,7 +466,7 @@ plot_reconstructed_effort_LME_war_ref<-plot_reconstructed_effort_LME_war_ref[lap
 if(df_kappa == 6){
   name = "Output/reconstructed_effort_for_spinup_tot_regional_models.pdf"
 }else if (df_kappa == 3){
-  name = "Output/reconstructed_effort_for_spinup_tot_regional_models.pdf"
+  name = "Output/reconstructed_effort_for_spinup_tot_regional_models_kappa3.pdf"
 }
 
 pdf(name, height = 8, width = 6)
@@ -480,7 +503,7 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
   # then you calculate the effort contribution of each group. at the LME level this sums to 1 
   
   recent_effortB<-recent_effortB %>% 
-    group_by(model_area_name,SAUP,Gear,FGroup,Sector) %>% 
+    group_by(region,SAUP,Gear,FGroup,Sector) %>% 
     summarise(NomActive = mean(NomActive, na.rm = TRUE)) %>% 
     ungroup() %>% 
     mutate(contribution = NomActive/sum(NomActive, na.rm = TRUE))
@@ -591,7 +614,7 @@ decision<-reconstructed_effort_LME_war_ref
 
 # First loop ----
 # SEE DECISION on GLOBAL FILE 
-toKeep<-sort(unique(effort$model_area_name))
+toKeep<-sort(unique(effort$region))
 reconstructed_effort_ref<-list()
 plot_reconstructed_effort_ref<-list()
 
@@ -600,7 +623,7 @@ for(i in 1:length(decision)){
   # i = 1
   print(toKeep [[i]])
   
-  recent_effort<-filter(effort, model_area_name == toKeep [[i]])
+  recent_effort<-filter(effort, region == toKeep [[i]])
   
   # WARNING - need to check that LMEs are matching across datasets and with toKeep - YES matching 
   b<-effort_spread(historical_effort = decision[[i]], recent_effort = recent_effort, toKeep = toKeep[[i]], reference = "1950-1960")

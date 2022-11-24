@@ -4,6 +4,7 @@ editor_options:
   chunk_output_type: console
 ---
 
+# NOTE THIS FILE CAN BE REMOVED - Denisse has created the mask for regional models and transformed in csv file - see 02 
 # Libraries
 
 ```{r}
