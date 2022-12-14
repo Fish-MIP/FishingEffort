@@ -875,7 +875,7 @@ save(reconstructed_effort_LME_war_ref, plot_reconstructed_effort_LME_war_ref, da
 # plot_reconstructed_effort_LME_war_ref[[15+1]]
 
 # names(data_for_plot_for_FAOreport)
-SBZ<-data_for_plot_for_FAOreport[[15+1]]
+SBZ<-data_for_plot_for_FAOreport[[14+1]]
 CC<-data_for_plot_for_FAOreport[[27+1]]
 
 # FROM INSIDE FUNCION... 
@@ -886,7 +886,7 @@ yMax = max(filter(SBZ, group == "Effort (nominal, DkW)")$Value, na.rm = TRUE)
 
 ann_text <- data.frame(Year = c(1841+10,1961+15), Value = rep(yMax,2), lab = c("Transition","Experiment"), group = rep("Effort (nominal, DkW)", 2), Data = rep("Reconstructed values", 2), Considered = rep("Yes", 2))
     
-plot_SBZ<-ggplot(data = SBZ, aes(x = Year, y = Value, group = Data, color = Data, shape=Considered)) +
+plot_SBZ<-ggplot(data = SBZ, aes(x = Year, y = Value, group = Data, color = Data))+ #, shape=Considered)) +
   ggtitle("Patagonian Shelf")+
   facet_wrap(~group, scales = "free", nrow = 2)+
   annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
@@ -894,7 +894,7 @@ plot_SBZ<-ggplot(data = SBZ, aes(x = Year, y = Value, group = Data, color = Data
   geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
   geom_point(data = filter(SBZ, Data == "Reconstructed values"),size=1)+
   geom_line(data = filter(SBZ, Data == "GAM predictions")) +
-  scale_color_manual(values = c("blue", "black"), drop = FALSE)+
+  scale_color_manual(labels = c("Stat. model", "Estimates"), values = c("blue", "black"), drop = FALSE)+
   scale_fill_chris()+
   my_theme+
   geom_vline(xintercept=1945, linetype="dashed", color = "red", size=0.5)+
@@ -904,7 +904,7 @@ yMax = max(filter(CC, group == "Effort (nominal, DkW)")$Value, na.rm = TRUE)
 
 ann_text <- data.frame(Year = c(1841+10,1961+15), Value = rep(yMax,2), lab = c("Transition","Experiment"), group = rep("Effort (nominal, DkW)", 2), Data = rep("Reconstructed values", 2), Considered = rep("Yes", 2))
    
-plot_CC<-ggplot(data = CC, aes(x = Year, y = Value, group = Data, color = Data, shape=Considered)) +
+plot_CC<-ggplot(data = CC, aes(x = Year, y = Value, group = Data, color = Data))+ #, shape=Considered)) +
   ggtitle("Canary Current")+
   facet_wrap(~group, scales = "free", nrow = 2)+
   annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
@@ -912,18 +912,25 @@ plot_CC<-ggplot(data = CC, aes(x = Year, y = Value, group = Data, color = Data, 
   geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
   geom_point(data = filter(CC, Data == "Reconstructed values"),size=1)+
   geom_line(data = filter(CC, Data == "GAM predictions")) +
-  scale_color_manual(values = c("blue", "black"), drop = FALSE)+
+  scale_color_manual(labels = c("Stat. model", "Estimates"), values = c("blue", "black"), drop = FALSE)+
   scale_fill_chris()+
   my_theme+
   geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)
 
 ## END 
 
+plot_SBZ<-plot_SBZ+theme(legend.position = "none")
+
 # install.packages("patchwork")
 library(patchwork)
-pdf("Output/LMEeffortFAOreport.pdf", height = 8, width = 6)
-plot_SBZ/plot_CC+plot_annotation(tag_levels = 'A')
+pdf("Output/LMEeffortFAOreport.pdf", height = 5, width = 9)
+plot_SBZ+plot_CC+plot_annotation(tag_levels = 'A')
 dev.off()
+
+jpeg("Output/LMEeffortFAOreport.jpg", width = 10, height = 5, units = 'in', res = 300, bg = "transparent")
+plot_SBZ+plot_CC+plot_annotation(tag_levels = 'A')
+dev.off()
+
 
 ```
 
@@ -1172,10 +1179,11 @@ reconstructed_effort_ref_all<-do.call(rbind.data.frame, reconstructed_effort_ref
 ```{r}
 
 # # # Plots for FAO report
-# rm(list=ls())
-# load("~/FishingEffort/Data/temp_effort_EEZ.RData")
+rm(list=ls())
+load("~/FishingEffort/Data/temp_effort_EEZ.RData")
+ls()
 
-# # check LME and EEZ interactions 
+# # check LME and EEZ interactions ----
 # trial<-effort %>% 
 #   select(LME, eez_country_name) %>% 
 #   unique()
@@ -1238,12 +1246,33 @@ unique(a$LME) # 28, 29
 
 nLME<- 29
 
-# to plot 
+# # FAO PLOT ---- 
 nLME<- 36 # 36 - South China Sea, 34 Bay of Bengal 
 
+# LME and EEZ
 data_plot_trial<-reconstructed_effort_ref_all %>% 
   filter(LME == nLME) %>% 
   group_by(Year, eez_country_name, LME) %>% 
+  summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
+  ungroup()
+
+unique(data_plot_trial$eez_country_name)
+head(reconstructed_effort_ref_all)
+
+# EEZ and Gear
+data_plot_trial_gear<-reconstructed_effort_ref_all %>% 
+  filter(LME == nLME, eez_country_name == "China Main") %>% 
+  group_by(Year, eez_country_name, LME, Gear) %>% 
+  summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
+  ungroup()
+
+head(data_plot_trial_gear)
+# View(data_plot_trial_gear)
+
+# Gear and Fgroup
+data_plot_trial_Fgroup<-reconstructed_effort_ref_all %>% 
+  filter(LME == nLME, eez_country_name == "China Main", Gear == "Gillnets") %>% 
+  group_by(Year, eez_country_name, LME, Gear, FGroup) %>% 
   summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
   ungroup()
 
@@ -1252,11 +1281,11 @@ yMax = max(data_plot_trial$NomActive, na.rm = TRUE)
 
 ann_text <- data.frame(Year = c(1841+10,1961+15), eez_country_name = rep(unique(data_plot_trial$eez_country_name)[1], 2), LME = unique(data_plot_trial$LME), NomActive = rep(yMax,2), lab = c("Transition","Experiment"))
    
-plot<-ggplot(data = data_plot_trial, aes(x = Year, y = NomActive, group = eez_country_name, color = eez_country_name)) +
+plot1<-ggplot(data = data_plot_trial, aes(x = Year, y = NomActive, group = eez_country_name, color = eez_country_name)) +
   # ggtitle(paste("LME", nLME, sep = " "))+
   ggtitle("South China Sea")+
   ylab("Fishing effort (DkW)") +
-  scale_color_discrete(name = "Exclusive Economic Zone", labels = c("Brunei", "China", "Indonesia", "Malaysia", "Philippines", "Taiwan", "Vietnam"))+#, values = c("blue", "red", "yellow", "orange", "pink", "purple", "black")) +
+  scale_color_discrete(name = "EEZ", labels = c("Brunei", "China", "Indonesia", "Malaysia", "Philippines", "Taiwan", "Vietnam"))+#, values = c("blue", "red", "yellow", "orange", "pink", "purple", "black")) +
   annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
   annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
   geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 3)+
@@ -1266,6 +1295,76 @@ plot<-ggplot(data = data_plot_trial, aes(x = Year, y = NomActive, group = eez_co
   geom_point(size=1)+
   my_theme
 
+# FAO PLOT same quality as effort by LME ....
+yMax = max(data_plot_trial_gear$NomActive, na.rm = TRUE)
+
+ann_text <- data.frame(Year = c(1841+10,1961+15), eez_country_name = rep(unique(data_plot_trial_gear$eez_country_name)[1], 2), LME = unique(data_plot_trial_gear$LME),Gear = rep(unique(data_plot_trial_gear$Gear)[1],2), NomActive = rep(yMax,2), lab = c("Transition","Experiment"))
+   
+# 5 main ones 
+trial<-data_plot_trial_gear %>% 
+  group_by(Gear) %>% 
+  summarise(a = sum(NomActive)) %>% 
+  arrange(-a)
+
+trial<-trial[1:5,]
+trial<-trial$Gear
+
+data_plot_trial_gear<- data_plot_trial_gear %>% 
+  filter(Gear %in% trial)
+
+
+plot2<-ggplot(data = data_plot_trial_gear, aes(x = Year, y = NomActive, group = Gear, color = Gear)) +
+  # ggtitle(paste("LME", nLME, sep = " "))+
+  ggtitle("China Exclusive Economic Zone")+
+  ylab("Fishing effort (DkW)") +
+  scale_color_discrete(name = "Gear", labels = c("Gillnets","Lines","Purse seine","Bottom trawl","Midw. trawl")) +
+  annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
+  annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
+  geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 3)+
+  geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)+
+  geom_vline(xintercept=1960, linetype="dashed", color = "red", size=0.5)+
+  geom_line() +
+  geom_point(size=1)+
+  my_theme
+
+# FAO PLOT same quality as effort by LME ....
+yMax = max(data_plot_trial_Fgroup$NomActive, na.rm = TRUE)
+
+ann_text <- data.frame(Year = c(1841+10,1961+15), eez_country_name = rep(unique(data_plot_trial_Fgroup$eez_country_name)[1], 2), LME = unique(data_plot_trial_Fgroup$LME), Gear = rep(unique(data_plot_trial_Fgroup$Gear)[1],2), FGroup = rep(unique(data_plot_trial_Fgroup$FGroup)[1],2),NomActive = rep(yMax,2), lab = c("Transition","Experiment"))
+
+# 5 main ones 
+trial<-data_plot_trial_Fgroup %>% 
+  group_by(FGroup) %>% 
+  summarise(a = sum(NomActive)) %>% 
+  arrange(-a)
+
+trial<-trial[1:5,]
+trial<-trial$FGroup
+
+data_plot_trial_Fgroup<- data_plot_trial_Fgroup %>% 
+  filter(FGroup %in% trial)
+
+plot3<-ggplot(data = data_plot_trial_Fgroup, aes(x = Year, y = NomActive, group = FGroup, color = FGroup)) +
+  # ggtitle(paste("LME", nLME, sep = " "))+
+  ggtitle("Gillnet")+
+  ylab("Fishing effort (DkW)") +
+  scale_color_discrete(name = "Functional group", labels = c("Benthopel 30-90", "Demersal <30", "Pelagic <30", "Pelagic >90", "Shrimps"))+#, values = c("blue", "red", "yellow", "orange", "pink", "purple", "black")) +
+  annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
+  annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
+  geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 3)+
+  geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)+
+  geom_vline(xintercept=1960, linetype="dashed", color = "red", size=0.5)+
+  geom_line() +
+  geom_point(size=1)+
+  my_theme
+
+
+# if FAO PLOT
+jpeg("Output/EEZeffortFAOreport.jpg", res = 300, units = "in", height = 9, width = 7) # height = 8, width = 6)
+plot1/plot2/plot3
+dev.off() 
+
+
 # # if e.g. LME 31 
 # pdf("Output/Kenya.pdf", height = 10, width = 12) # height = 8, width = 6)
 # plot
@@ -1273,10 +1372,10 @@ plot<-ggplot(data = data_plot_trial, aes(x = Year, y = NomActive, group = eez_co
 
 # if FAO PLOT
 pdf("Output/EEZeffortFAOreport.pdf", height = 4, width = 7) # height = 8, width = 6)
-plot
+plot1
 dev.off() 
 
-### check that effort datqa for LME 31 (or anyLME) matches across datasets  
+### check that effort data for LME 31 (or anyLME) matches across datasets ---- 
 head(reconstructed_effort_ref_all) # from EEZ etc allocation
 trial31<-filter(reconstructed_effort_ref_all, LME == 31)
 trial31<-trial31 %>% 
@@ -1328,6 +1427,17 @@ yannick_dir <- "/rd/gem/private/users/yannickr"
 # NV and P were given as part of the original effort file but are not reconstructed so NA for spin-up. These columns are now deleted (can provide as separate file).
 # Some reconstructions are based on very few effort values (LME 6, 18 and 57), need to specify in method. 
 # Need to dd a calibration/validation column to catch data 
+
+# check the file 
+rm(list=ls())
+library(tidyverse)
+library(dtplyr)
+library(tictoc)
+library(data.table)
+library(mgcv)
+library(gridExtra)
+
+a<-read_csv("/rd/gem/private/users/yannickr/DKRZ_EffortFiles/effort_histsoc_1841_2010.csv")
 
 ```
 
