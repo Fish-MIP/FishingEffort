@@ -83,6 +83,10 @@ Explore files and join the main data
 (EEZ_disputes <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv")) %>% filter(DISPUTED==TRUE))
 
 (take_first <- EEZ_disputes[!duplicated(EEZ_disputes[c("Lon", "Lat")]),])
+
+head(EEZ) # CN - might need to change aggregation levels - use the FAOname as the  Admin_Country aggregates EEZ that are under the same administrative country. 
+unique(EEZ[,c("CNumber", "FAOname", "A_Code", "Admin_Country")])
+
      
 (EEZ_adj <- bind_rows(EEZ %>% 
             filter(DISPUTED == FALSE),
