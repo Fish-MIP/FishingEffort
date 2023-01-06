@@ -17,7 +17,9 @@ yannick_dir_new <- "/rd/gem/private/users/yannickr"
 yannick_dir_old <- "/rd/gem/private/DataYannick"
 
 # NEW ----
-effort_new<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated.csv"))
+# effort_new<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated.csv"))
+# CN using EEZ instrad of administrative country to aggregate data at EEZ level
+effort_new<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated_EEZ.csv"))
 head(effort_new)
 
 # OLD ----
@@ -50,7 +52,7 @@ effort_mapped_all<-effort_mapped_old %>%
         title=element_text(size=8))+
     facet_wrap(~Version))
 
-pdf("Output/Summary_total_NewVsOldData.pdf", width = 10, height=7)
+pdf("Output/Summary_total_NewVsOldData_EEZ.pdf", width = 10, height=7)
 plot_effort_tot
 dev.off()
 
@@ -131,8 +133,8 @@ for(i in 1:length(effort_list)){
  
 }
 
-# # 4 plot per page - all effort
-# ggsave("Output/Summary_LME_NewVsOldData_corrected.pdf", marrangeGrob(grobs = plot_effort, nrow=2, ncol=2), device = "pdf")
+# 4 plot per page - all effort
+ggsave("Output/Summary_LME_NewVsOldData_corrected_EEZ.pdf", marrangeGrob(grobs = plot_effort, nrow=2, ncol=2), device = "pdf")
 # # one page per LME
 # pdf("Output/Summary_LME_NewVsOldData2_corrected_split.pdf", width = 10, height=5)
 # plot_effort
@@ -171,18 +173,18 @@ effort_mapped_all_FG<- effort_mapped_old_FG %>%
         title=element_text(size=8))+
   facet_wrap(~FGroup))
 
-# pdf("Output/Summary_LME51_NewVsOldData.pdf", width = 10, height=7)
-# Plot_LME
-# dev.off()
+pdf("Output/Summary_LME51_NewVsOldData_EEZ.pdf", width = 10, height=7)
+Plot_LME
+dev.off()
 
 # explore NA in Fgroup - none
 filter(effort_old, is.na(FGroup))
 filter(effort_new, is.na(FGroup))
 
-effort_mapped_old_FG %>% summarise(trial = sum(effort)) # different values when I aggregate  
+effort_mapped_old_FG %>% summarise(trial = sum(effort)) 
 effort_mapped_new_FG %>% summarise(trial = sum(effort))
 
-effort_mapped_old_FG %>% group_by(Year) %>% summarise(trial = sum(effort)) # different values by year  
+effort_mapped_old_FG %>% group_by(Year) %>% summarise(trial = sum(effort))   
 effort_mapped_new_FG %>% group_by(Year) %>% summarise(trial = sum(effort))
 
 ### column names (see emails from Yannick and notes on desktop re links to draft paper)

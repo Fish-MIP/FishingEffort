@@ -24,7 +24,9 @@ library("raster")
 # LME-level data ----
 yannick_dir_new <- "/rd/gem/private/users/yannickr"
 
-effort_new<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated.csv"))
+# effort_new<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated.csv"))
+# consider new aggregation using EEZ instead of administrative country 
+effort_new<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated_EEZ.csv"))
 head(effort_new)
 
 # aggregate artisanal
@@ -68,7 +70,9 @@ nrow(effort_new_Artisanal)+nrow(effort_new_Industrial)
 effort_spinup<-effort_tot %>% 
   filter(Year >= 1950, Year <= 2017) 
 
-write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017.csv") 
+# write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017.csv") 
+# consider new aggregation using EEZ instead of administrative country 
+write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ.csv") 
 
 ## NOTE: the below is not necessary anymore (besides checking) as the final effort data will include spin-up
 # all data on DKRZ are replaced with spin-up version but better to keep this version as well.  
@@ -86,11 +90,15 @@ lme42<-trial %>%
 ggplot(lme42, aes(x = Year, y = NomActive, group = Sector, color = Sector))+
   geom_line()
 
-write.csv(trial, "/rd/gem/private/users/yannickr/effort_histsoc_1961_2010.csv") 
+# consider new aggregation using EEZ instead of administrative country 
+write.csv(trial, "/rd/gem/private/users/yannickr/effort_histsoc_1961_2010_EEZ.csv") 
 
 # load data from gem48 to isismip ----
 
 # scp -r effort_histsoc_1961_2010.csv b381217@levante.dkrz.de:/home/b/b381217/temp_effort/
+
+# NOTE no changes to the below as these are not aggregated at EEZ level and do not include spin-up.
+# they are only provided for checks but not as model forcing - these are now in DKRZ 
 
 # gridded -----
 

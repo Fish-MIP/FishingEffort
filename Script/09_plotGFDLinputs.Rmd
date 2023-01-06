@@ -1,0 +1,831 @@
+---
+title: "Plot GFDL inputs"
+author: "Camilla Novaglio"
+date: "05/07/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The aim of this script is to plot GFDL input data 
+
+Check paper by Xiao Liu: https://agupubs.onlinelibrary.wiley.com/doi/pdf/10.1029/2021GL094367
+
+## Set environment 
+
+```{r environment, echo = FALSE}
+
+rm(list=ls())
+
+# server clean on 15/07/2022 - need to reinstall all packages... 
+# install.packages("ncdf4")
+# install.packages("sp")
+# install.packages("raster")
+# install.packages("rgdal")
+# install.packages("gtable")
+# install.packages("R6")
+# install.packages("scales")
+# install.packages("colorspace")
+# install.packages("munsell")
+# install.packages("magrittr")
+# install.packages("crayon")
+# install.packages("fansi") 
+# install.packages("utf8")
+# install.packages("pillar")
+# install.packages("pkgconfig")
+# install.packages("tibble")
+# install.packages("withr")
+# install.packages("ggplot2")
+# install.packages("data.table")
+# install.packages("ncdf4.helpers")
+# install.packages("tictoc")
+# install.packages("purrr")
+# install.packages("tidyselect")
+# install.packages("dplyr")
+# install.packages("dtplyr")
+# install.packages("labeling")
+# install.packages("farver")
+# install.packages("digest")
+# install.packages("gridExtra")
+
+library(ncdf4) # package for netcdf manipulation
+library(raster) # package for raster manipulation
+library(rgdal) # package for geospatial analysis
+library(ggplot2) # package for plotting
+# library(RNetCDF) # WARNING not used here - still need to explore 
+library(data.table)
+library(dtplyr)
+# library(raster)
+library(ncdf4.helpers)
+library(tictoc)
+library(dplyr, warn.conflicts = FALSE)
+library(gridExtra)
+
+```
+
+## Define plot theme 
+
+```{r theme, echo = FALSE}
+
+my_theme<-theme_bw()+
+  theme(text = element_text(size = 10), # this should be overwritten by the below
+        plot.title = element_text(size = 10),
+        axis.title = element_text(size = 9),
+        axis.text = element_text(size = 8),
+        legend.title=element_text(size = 9), 
+        legend.text=element_text(size = 8),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.key.size = unit(0.1, "cm")) 
+  
+```
+
+## Load intpp and do annual means 
+
+```{r}
+
+## can skip if you have already saved the data? ----
+
+variable = "intpp"
+
+# extract intpp experiment
+file_exp<-"/rd/gem/private/fishmip_inputs/ISIMIP3a/experiment/gfdl-mom6-cobalt2_obsclim_intpp_15arcmin_global_monthly_1961_2010.nc"
+intpp_exp <- brick(file_exp)
+# dim(intpp_exp)
+# plot(intpp_exp[[600]]) # access rater layer 600
+#
+# # # check and adjust?? same extent and crs??
+# extent(intpp_exp)
+# extent(lme_mask_025[[1]])
+# crs(intpp_exp)
+# crs(lme_mask_025[[1]])
+
+# get time vector from nc - WARNING - this should be done with the raster package and should be the same for all files.
+# https://pjbartlein.github.io/REarthSysSci/netCDF.html
+nc_data <- nc_open(file_exp)
+
+# print(nc_data)
+
+# lon <- ncvar_get(nc_data, "lon")
+# lat <- ncvar_get(nc_data, "lat", verbose = F)
+# t <- ncvar_get(nc_data, "time")
+# t_units<-ncatt_get(nc_data, "time", "units")
+Time_in_Date_format <- nc.get.time.series(nc_data)
+Time_in_Date_format <- as.character(Time_in_Date_format)
+
+# # WARNING ... what 's this??
+# Warning message:
+# In nc.get.dim.axes(f) :
+#   closing unused connection 3 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_104228_12432_67689.gri)
+
+units<-ncatt_get(nc_data, "intpp", "units")$value
+
+nc_close(nc_data)
+rm(nc_data)
+
+# calculate annual means - it is better to calculate annual means first as this step takes a while and can be done only once before extracting lme data.
+# https://gis.stackexchange.com/questions/257090/calculating-and-displaying-mean-annual-precipitation-from-cru-data
+# create vector to serve as index
+indices<-as.Date(Time_in_Date_format)
+indices<-format(indices, format = "%Y")
+indices <- as.numeric(indices)
+# unique(indices)
+
+# experiment
+tic()
+intpp_exp_annual <- stackApply(intpp_exp, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on?
+toc() # 15.4694 min
+
+## WARNING - what's this ??
+# Warning messages:
+# 1: In for (i in 1:loop) { :
+#   closing unused connection 4 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_101633_12432_14220.gri)
+# 2: In for (i in 1:loop) { :
+#   closing unused connection 3 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_101443_12432_97108.gri)
+#
+
+rm(intpp_exp)
+
+# dim(intpp_exp_annual) # 50 years
+# plot(intpp_exp_annual[[50]])
+
+# extract intpp control
+file_ctr<-"/rd/gem/private/fishmip_inputs/ISIMIP3a/control/gfdl-mom6-cobalt2_ctrlclim_intpp_15arcmin_global_monthly_1961_2010.nc"
+intpp_ctr <- brick(file_ctr)
+# dim(intpp_ctr)
+# plot(intpp_ctr[[600]]) # access rater layer 600
+#
+# # # check and adjust?? same extent and crs??
+# extent(intpp_ctr)
+# extent(lme_mask_025[[1]])
+# crs(intpp_ctr)
+# crs(lme_mask_025[[1]])
+
+# control
+tic()
+intpp_crt_annual <- stackApply(intpp_ctr, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on?
+toc() #
+
+# WARNING
+# Warning messages:
+# 1: In UseMethod("depth") :
+#   no applicable method for 'depth' applied to an object of class "NULL"
+# 2: In UseMethod("depth") :
+#   no applicable method for 'depth' applied to an object of class "NULL"
+
+rm(intpp_ctr)
+
+# dim(intpp_crt_annual) # 50 years
+# plot(intpp_crt_annual[[50]])
+
+# getwd()
+# save(intpp_exp_annual, intpp_crt_annual, file = "Data/temp_intpp.RData")
+# save.image(file = "~/FishingEffort/Data/temp_intpp.RData")
+
+```
+
+
+## Load SST and do annual means 
+
+```{r}
+
+# variable = "tos"
+#
+# # extract intpp experiment
+# file_exp<-"/rd/gem/private/fishmip_inputs/ISIMIP3a/experiment/gfdl-mom6-cobalt2_obsclim_tos_15arcmin_global_monthly_1961_2010.nc"
+# intpp_exp <- brick(file_exp)
+# # dim(intpp_exp)
+# # plot(intpp_exp[[600]]) # access rater layer 600
+# #
+# # # # check and adjust?? same extent and crs??
+# # extent(intpp_exp)
+# # extent(lme_mask_025[[1]])
+# # crs(intpp_exp)
+# # crs(lme_mask_025[[1]])
+# 
+# # get time vector from nc - WARNING - this should be done with the raster package and should be the same for all files.
+# # https://pjbartlein.github.io/REarthSysSci/netCDF.html
+# nc_data <- nc_open(file_exp)
+# 
+# print(nc_data)
+# 
+# # lon <- ncvar_get(nc_data, "lon")
+# # lat <- ncvar_get(nc_data, "lat", verbose = F)
+# # t <- ncvar_get(nc_data, "time")
+# # t_units<-ncatt_get(nc_data, "time", "units")
+# Time_in_Date_format <- nc.get.time.series(nc_data)
+# Time_in_Date_format <- as.character(Time_in_Date_format)
+# 
+# # # WARNING ... what 's this??
+# # Warning message:
+# # In nc.get.dim.axes(f) :
+# #   closing unused connection 3 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_104228_12432_67689.gri)
+# 
+# units<-ncatt_get(nc_data, "tos", "units")$value
+# 
+# nc_close(nc_data)
+# rm(nc_data)
+# 
+# # calculate annual means - it is better to calculate annual means first as this step takes a while and can be done only once before extracting lme data.
+# # https://gis.stackexchange.com/questions/257090/calculating-and-displaying-mean-annual-precipitation-from-cru-data
+# # create vector to serve as index
+# indices<-as.Date(Time_in_Date_format)
+# indices<-format(indices, format = "%Y")
+# indices <- as.numeric(indices)
+# # unique(indices)
+# 
+# # experiment
+# tic()
+# intpp_exp_annual <- stackApply(intpp_exp, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on?
+# toc() # 15.4694 min
+# 
+# ## WARNING - what's this ??
+# # Warning messages:
+# # 1: In for (i in 1:loop) { :
+# #   closing unused connection 4 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_101633_12432_14220.gri)
+# # 2: In for (i in 1:loop) { :
+# #   closing unused connection 3 (/tmp/RtmpvMspzB/raster///r_tmp_2022-07-14_101443_12432_97108.gri)
+# #
+# 
+# rm(intpp_exp)
+# 
+# # dim(intpp_exp_annual) # 50 years
+# # plot(intpp_exp_annual[[50]])
+# 
+# # extract intpp control
+# file_ctr<-"/rd/gem/private/fishmip_inputs/ISIMIP3a/control/gfdl-mom6-cobalt2_ctrlclim_tos_15arcmin_global_monthly_1961_2010.nc"
+# intpp_ctr <- brick(file_ctr)
+# # dim(intpp_ctr)
+# # plot(intpp_ctr[[600]]) # access rater layer 600
+# #
+# # # # check and adjust?? same extent and crs??
+# # extent(intpp_ctr)
+# # extent(lme_mask_025[[1]])
+# # crs(intpp_ctr)
+# # crs(lme_mask_025[[1]])
+# 
+# # control
+# tic()
+# intpp_crt_annual <- stackApply(intpp_ctr, indices=indices, fun=mean, na.rm = TRUE) # WARNING - check this - also na.rm should be on?
+# toc() #
+# 
+# # WARNING
+# # Warning messages:
+# # 1: In UseMethod("depth") :
+# #   no applicable method for 'depth' applied to an object of class "NULL"
+# # 2: In UseMethod("depth") :
+# #   no applicable method for 'depth' applied to an object of class "NULL"
+# 
+# rm(intpp_ctr)
+# 
+# # dim(intpp_crt_annual) # 50 years
+# # plot(intpp_crt_annual[[50]])
+# 
+# # getwd()
+# # save(intpp_exp_annual, intpp_crt_annual, file = "Data/temp_intpp.RData")
+# # save.image(file = "~/FishingEffort/Data/temp_tos.RData")
+
+```
+
+## Extract LME masks 
+
+```{r}
+
+# # ## End Skip - load data ----
+# getwd()
+# load("~/FishingEffort/Data/temp_intpp.RData")
+# ls()
+
+# extract LME data ----
+
+lme_mask_name<-c("mask_EBS", "mask_GOA", "mask_CALC", "mask_GOC", "mask_GOM", "mask_SEUSCS", "mask_NEUSCS", "mask_SCOT", "mask_LAB", "mask_IPH", "mask_PCAC", "mask_CARS", "mask_HUMC", "mask_PATC", "mask_SBRS", "mask_EBRS", "mask_NBRS", "mask_CEA", "mask_GRLS", "mask_BARS", "mask_NORWS", "mask_NS", "mask_BS", "mask_CBS", "mask_IBC", "mask_MEDS", "mask_CRC", "mask_GUIC", "mask_BENC", "mask_AGC", "mask_SOMCC", "mask_ARABS", "mask_REDS", "mask_BOB", "mask_GOT", "mask_SCS", "mask_SULUS", "mask_INDS", "mask_NAS", "mask_NEAS", "mask_ECAS", "mask_SEAS", "mask_SWAS", "mask_WCAS", "mask_NWAS", "mask_NZS", "mask_ECS", "mask_YELS", "mask_KURC", "mask_JAPS", "mask_QYC", "mask_OKS", "mask_WBS", "mask_NBS", "mask_BEAS", "mask_ESS", "mask_LAPS", "mask_KARS", "mask_ISS", "mask_FARP", "mask_ANT", "mask_BLS", "mask_HUDB", "mask_CARC", "mask_ALEI", "mask_CANHA")
+
+lme_mask_025<-list()
+
+tic()
+for(i in 1:length(lme_mask_name)){
+  
+  lme_mask_025[[i]]<-brick("/rd/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/LMEs66_masks_0.25deg.nc", varname = lme_mask_name[[i]])
+  names(lme_mask_025)[i]<-lme_mask_name[i]
+  
+}
+toc() # 6.432 sec elapsed
+
+# # WARNING - why does this have a 3rd dimension?  
+# dim(lme_mask_025[[1]]) 
+# plot(lme_mask_025[[1]])
+```
+
+## Extract LME time series and plot function
+
+```{r}
+# extract LME and plot function 
+Extract_LME_TimeSeries<-function(lme_mask_025, lme_mask_name, intpp_exp_annual, intpp_crt_annual, units, variable){
+  
+  # # trial
+  # lme<-lme_mask_025[[42]]
+  # intpp_exp_annual = intpp_exp_annual
+  # intpp_crt_annual = intpp_crt_annual
+  # variable = "intpp"
+  
+  # extrapolate LME data 
+  # WARNING - this is very slow: if done before annual means 15 min to run, if done after annual means 18 sec to run for each LME. 
+  # possible links
+  # https://stackoverflow.com/questions/51716315/how-to-subset-classify-raster-based-on-another-raster-grid-cells-values 
+  # https://stackoverflow.com/questions/64785261/replacing-raster-values-with-another-raster-when-meeting-certain-condition
+
+  tic()
+  intpp_exp_annual_lme <- mask(intpp_exp_annual, lme_mask_025, updatevalue=NA)
+  toc() # 15.622 sec elapsed
+  # plot(intpp_exp_annual_lme[[50]]) 
+  # dim(intpp_exp_annual_lme)
+
+  tic()
+  intpp_crt_annual_lme <- mask(intpp_crt_annual, lme_mask_025, updatevalue=NA)
+  toc() # 15.622 sec elapsed
+  # plot(intpp_crt_annual_lme[[50]]) 
+  # dim(intpp_crt_annual_lme)
+
+  # rm(intpp_exp_annual,intpp_crt_annual)
+
+  # mean values - weighted by grid cell latitude 
+  # https://stackoverflow.com/questions/55230510/calculating-weighted-spatial-global-annual-averages-across-grid-cells-using-netc
+  # also weight by area available but example not working... 
+  
+  # # example .... 
+  # library(raster)
+  # r <- abs(init(raster(), 'y'))
+  # s <- stack(r, r, r)
+  # 
+  # sm <- mean(s, na.rm=TRUE)
+  # cellStats(sm, mean, na.rm=TRUE)
+  # # 45
+  # 
+  # # raster with latitude cell values 
+  # w <- init(s, 'y')
+  # # cosine after transforming to radians
+  # w <- cos(w  * (pi/180))
+  # # multiply weights with values
+  # x <- s * w
+  # # compute weighted average
+  # cellStats(x, sum) / cellStats(w, sum)
+  # #[1] 32.70567
+  # 
+  # # with area
+  # # a <- area(s) / 10000
+  # a <- area(s)
+  # y <- s * a
+  # cellStats(y, sum) / cellStats(a, sum)
+  
+  # experiment
+  # raster with latitude cell values 
+  w <- init(intpp_exp_annual_lme, 'y')
+  # cosine after transforming to radians
+  w <- cos(w  * (pi/180))
+  # multiply weights with values
+  tic()
+  x <- intpp_exp_annual_lme * w
+  toc() # 14.822 sec elapsed
+  
+  # need to maks the weights too otherwise denominator too high
+  # pdf("Output/plot1.pdf", height = 8, width = 6)
+  # plot(x[[1]])
+  # dev.off()
+  # 
+  # pdf("Output/plot2.pdf", height = 8, width = 6)
+  # plot(w)
+  # dev.off()
+  
+  w2<-mask(w, lme_mask_025, updatevalue=NA)
+  
+  # pdf("Output/plot3.pdf", height = 8, width = 6)
+  # plot(w2)
+  # dev.off()
+
+  # compute weighted average - WARNING is na.rm = TRUE ok??  
+  weighted_mean<-cellStats(x, sum, na.rm = TRUE) / cellStats(w2, sum, na.rm = TRUE)
+  intpp_exp_annual_lme_weighted<-data.frame(Year = unique(indices), weighted_mean = weighted_mean)
+
+  # # with area 
+  # a <- area(intpp_exp_annual_lme) / 10000
+  # a <- mask(a, lme, updatevalue=NA)
+  # y <- intpp_exp_annual_lme * a
+  # cellStats(y, sum) / cellStats(a, sum)
+  
+  # control 
+  w <- init(intpp_crt_annual_lme, 'y')
+  w <- cos(w  * (pi/180))
+  tic()
+  x <- intpp_crt_annual_lme * w
+  toc() # 14.822 sec elapsed
+  w2<-mask(w, lme_mask_025, updatevalue=NA)
+  weighted_mean<-cellStats(x, sum, na.rm = TRUE) / cellStats(w2, sum, na.rm = TRUE)
+  intpp_crt_annual_lme_weighted<-data.frame(Year = unique(indices), weighted_mean = weighted_mean)
+
+  # # plot 
+  # experiemnt
+  # ggplot(intpp_exp_annual_lme_weighted, aes(x = Year, y = weighted_mean))+
+  #   geom_line() 
+  # 
+  # # control  
+  # ggplot(intpp_crt_annual_lme_weighted, aes(x = Year, y = weighted_mean))+
+  #   geom_line()
+
+  # calculate spin-up from control to add to both control and experiment. 
+  
+  # PROBLEM - mirrowing patterns use ugly version below 
+  # spinup<-intpp_crt_annual_lme_weighted %>% 
+  #   filter(Year >= 1961, Year <=1980)
+  # 
+  # nRepeat<-round((1960-1841)/nrow(spinup))
+  # 
+  # trial<-spinup %>% 
+  #   slice(rep(1:n(), nRepeat))
+  # 
+  # trial<-trial %>% 
+  #   mutate(Year = seq(1960, 1960-(nrow(trial)-1))) %>% 
+  #   filter(Year >=1841)
+  # 
+  # spinup<-trial  
+  # 
+  # ggplot(trial, aes(x = Year, y = weighted_mean))+
+  #   geom_line()
+  # 
+  
+  # ugly version
+  spinup<-intpp_crt_annual_lme_weighted %>%
+    filter(Year >= 1961, Year <=1980)
+
+  min<-min(spinup$Year)-1
+  spinup2<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min))
+
+  min<-min(spinup2$Year)-1
+  spinup3<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min))
+
+  min<-min(spinup3$Year)-1
+  spinup4<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min))
+
+  min<-min(spinup4$Year)-1
+  spinup5<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min))
+
+  min<-min(spinup5$Year)-1
+  spinup6<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min))
+
+  min<-min(spinup6$Year)-1
+  spinup7<-spinup %>%
+    mutate(Year = seq(min-(nrow(spinup)-1),min)) #%>%
+    # filter(Year >= 1850)
+  
+  # sort(unique(spinup7$Year)) # to 1841 ... so effort needs to match this year.  
+
+  spinup<-rbind(spinup2,spinup3, spinup4,spinup5, spinup6, spinup7)
+  
+  # combine to experiment and control 
+  intpp_exp_annual_lme_weighted_spinup<-rbind(intpp_exp_annual_lme_weighted, spinup)
+  intpp_exp_annual_lme_weighted_spinup$Type<-"obsclim"
+  intpp_ctr_annual_lme_weighted_spinup<-rbind(intpp_crt_annual_lme_weighted, spinup)
+  intpp_ctr_annual_lme_weighted_spinup$Type<-"ctrlclim"
+
+  final<-intpp_exp_annual_lme_weighted_spinup %>% 
+    full_join(intpp_ctr_annual_lme_weighted_spinup)
+
+  # if intpp transform units from "mol m-2 s-1" to "mg C m-2 d-1" comapre with Cheryl's appaer and with Xiao Liu's paper
+  
+  if(variable == "intpp"){
+  
+  # For NPP - from slack with Cheryl 
+  # 12 g C = 1 mol
+  # seconds to days
+  # 60s/min * 60 min/ hour * 24 hrs/ day = 86400 s/day
+  # mol/m2/s * 12 gC/1 mol * 84600 s/day => 12*86400
+  # 
+  # NS LME
+  # 4.5 E-7 * 12*86400 = 0.47
+  # 
+  # To mgC
+  # mol/m2/s => gC/m2/d
+  # gC/m2/d * 1000mg/g
+
+  final<-final %>% 
+    mutate(weighted_mean = weighted_mean*12*86400*1000)
+  
+  units = "mg C m-2 d-1"
+  
+  }
+  
+# final plot 
+  yMax = max(final$weighted_mean, na.rm = TRUE)
+  ann_text <- data.frame(Year = c(1841+10,1961+10), weighted_mean = rep(yMax,2), lab = c("Spin-up","Experiment"), Type = rep("ctrlclim", 2))
+
+  plot<-ggplot(data = final, aes(x = Year, y = weighted_mean, group = Type, color = Type)) +
+    # ggtitle(paste("LME", toKeep, sep = " "))+
+    ggtitle(paste("LME", lme_mask_name, sep = " "))+
+    # facet_wrap(~group, scales = "free", nrow = 2)+
+    annotate("rect",xmin=1841, xmax=1961, ymin=-Inf, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up #edf8fb
+    # annotate("rect",xmin=1950, xmax=1961, ymin=-Inf, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # transition
+    annotate("rect",xmin=1961, xmax=2010, ymin=-Inf, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # projection 
+    # annotate("rect",xmin=2010, xmax=2017, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # validation
+    geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
+    # geom_point(data = filter(final_df_plot, Data == "Reconstructed values"),size=1)+
+    geom_line(size = 0.3) +
+    scale_color_manual(values = c("blue", "black"), drop = FALSE)+
+    # scale_fill_chris()+
+    my_theme+
+    geom_vline(xintercept=1961, linetype="dashed", color = "red", size=0.5)+
+    geom_vline(xintercept=1980, linetype="dashed", color = "red", size=0.5)+
+    ylab(paste(colnames(final)[2], "(",units,")", sep =" "))
+
+  return(plot = plot)
+  # return(list(final = final, plot = plot)) # could also extract intpp_crt_annual_lme and intpp_ext_annual_lme: annual values by grid cell in LME
+  
+}
+
+```
+
+## apply function to all LMEs 
+
+```{r}
+
+# # trial LME 42
+tic()
+a<-Extract_LME_TimeSeries(lme_mask_025 = lme_mask_025[[42]], lme_mask_name = lme_mask_name[[42]], intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual, units = units, variable = variable)
+toc() # 55.476 sec elapsed
+
+if(variable == "intpp"){
+  name = "Output/intpp_GFDL_lme42_newUnits.pdf"
+}else if(variable == "tos"){
+  name = "Output/tos_GFDL_lme42.pdf"
+}
+
+pdf(name, height = 4, width = 6)
+a
+dev.off()
+
+# loop through LMEs
+
+plot_new<-list()
+# final_new<-list()
+
+tic()
+for(i in 1:length(lme_mask_025)){
+# for(i in 1:2){
+  
+  message("Processing lme # ", i, " of ", length(lme_mask_025))
+  
+  plot_new[[i]]<-Extract_LME_TimeSeries(lme_mask_025 = lme_mask_025[[i]], lme_mask_name = lme_mask_name[[i]], intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual, units = units, variable = variable)
+  # plot_new[[i]]<-a$plot
+  # final_new[[i]]<-a$final
+  
+}
+toc() # 4093.522 sec elapsed 1h 8 min
+
+if(variable == "intpp"){
+  name = "Output/intpp_GFDL_newUnits.pdf"
+}else if(variable == "tos"){
+  name = "Output/tos_GFDL.pdf"
+}
+
+pdf(name, height = 8, width = 6)
+marrangeGrob(grobs = plot_new, nrow=3, ncol=1)
+dev.off()
+
+```
+
+## trial - in parallel *still working on this*
+
+```{r}
+
+library(parallel)
+setwd("/data/home/camillan/FishingEffort/Output") # set the folder where these files will be saved ... don't know how to save them in here 
+
+# try first 20 LMEs
+chunk_size <- 10 # chunk size for processing
+lme_new <- split(lme_mask_025[1:20], ceiling(seq_along(lme_mask_025[1:20])/chunk_size))
+length(lme_mask_025) #60 chunks
+length(lme_new)
+
+tic()
+ for(i in 1:length(lme_new)){
+  
+  i = 1
+  file_chunk <- lme_new[[i]]
+  
+  message("Processing chunk #", i, " of ", length(lme_new))
+  
+  mclapply(X = file_chunk, FUN = Extract_LME_TimeSeries(file_chunk, intpp_exp_annual = intpp_exp_annual, intpp_crt_annual = intpp_crt_annual) )#, mc.cores = 10)
+  
+}
+toc()
+
+
+## explore pbapply package for parallel - from Julia
+
+# install.packages("pbapply")
+
+# now could try again with lhs instead of the regular grid of parameters
+install.packages("lhs")
+library(lhs)
+
+set.seed(1234)
+
+# num "indiviudal runs"
+num_iter=1000
+
+X <- data.frame(randomLHS(num_iter, 2))
+# rows are iterations, columns are specific parameters
+colnames(X)<-names(params)[4:5]
+# if the first column is met_coef and you want it to be bound by say, 0.25 and 0.5, as above you do this:
+
+X[,"met_coeff"]<-X[,"met_coeff"]*0.25 + 0.25
+X[,"met_expp"]<-X[,"met_expp"]*0.6 + 0.4
+
+# check:
+hist(X[,"met_coeff"])
+
+hist(X[,"met_expp"])
+
+# can do the apply function in parallel so its faster, here just using as it has a nice progress bar
+library(pbapply)
+
+X$error<- pbapply(X,1,runModel,params,dat) # x = dataframe of lme by row, 1 = by raw, function and param are the argumetn of the function.  
+
+```
+
+## Other data exploration *no need to run*
+
+```{r data}
+
+# Code example from https://rpubs.com/boyerag/297592 ----
+
+# open and extract data 
+# try inpp one degree 
+nc_data <- nc_open("/rd/gem/private/fishmip_inputs/ISIMIP3a/experiment/gfdl-mom6-cobalt2_obsclim_intpp_onedeg_global_monthly_1961_2010.nc")
+
+print(nc_data)
+
+lon <- ncvar_get(nc_data, "lon")
+lat <- ncvar_get(nc_data, "lat", verbose = F)
+t <- ncvar_get(nc_data, "time")
+t_units<-ncatt_get(nc_data, "time", "units")
+
+# CN add - calculate yearly means 
+library("ncdf4.helpers")
+Time_in_Date_format <- nc.get.time.series(nc_data)
+class(Time_in_Date_format)
+Time_in_Date_format<-as.character(Time_in_Date_format)
+# also see https://pjbartlein.github.io/REarthSysSci/netCDF.html
+# end CN add 
+
+ndvi.array <- ncvar_get(nc_data, "intpp") # store the data in a 3-dimensional array
+dim(ndvi.array) # long lat time dimension... Huge!
+360*4
+180*4
+
+fillvalue <- ncatt_get(nc_data, "intpp", "_FillValue")
+fillvalue
+missvalue <- ncatt_get(nc_data, "intpp", "missing_value")
+
+# close the netcdf once you've extracted the data 
+nc_close(nc_data)
+
+# fill in the missing values 
+head(ndvi.array[,,1])
+# a<-ndvi.array[ndvi.array == fillvalue$value]
+# a[!is.na(a)]
+ndvi.array[which(ndvi.array == fillvalue$value)] 
+ndvi.array[which(ndvi.array == fillvalue$value)] 
+ndvi.array[ndvi.array == fillvalue$value] <- NA # I don't understand this as missing values are NA already so what's _FillValue?? nothing changes on the plot 
+# a<-max(ndvi.array, na.rm=TRUE)
+# ndvi.array[ndvi.array == a]
+
+######### CN calculate monthly means ----
+# # WARNING - how do I know this is the correct orientation of lat and lon?? 
+# dimnames(ndvi.array)<-list(lon,lat,Time_in_Date_format)
+# dimnames(ndvi.array)[3]
+
+# trial<-as.data.table(ndvi.array) # this si slow if 0.25 degrees.... 
+# trial2<-lazy_dt(trial)
+# head(as.data.table(trial2))
+# 
+# trial3<-trial2 %>% 
+#   dplyr::rename(lon = V1, lat = V2, date = V3, intpp = value) %>% 
+#   mutate(year = substr(date, 1,4)) # quickest but might bring errors??? 
+# 
+# # very slow... 
+# trial4<-trial3 %>% 
+#   group_by(lat, lon, year) %>% 
+#   dplyr::summarise(intpp_yearlyAv = mean(intpp, na.rm = TRUE)) %>% 
+#   ungroup()
+# 
+# head(as.data.table(trial4))
+
+# now 
+# 1. get LME info
+
+# # here from 07 and originally from 02 - these are the data that you have... 
+# yannick_dir <- "/rd/gem/private/users/yannickr"
+# # LME data
+# (LMEs <- fread(file.path(yannick_dir, "LMESeq.csv")))
+# LMEs <- lazy_dt(LMEs) # PROBLEM - 0.5 resolution from 0.25 to 0.75  
+
+# from matthias # WORK THIS OUT 
+# /work/bb0820/ISIMIP/ISIMIP3a/InputData/geo_conditions/fishmip_regions/ 
+# nc_lme <- nc_open("/rd/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/LMEs66_masks_1deg.nc")
+# 
+# print(nc_lme) 
+# 
+# lme1 <- ncvar_get(nc_lme, "mask_EBS")
+# # image(lme1)
+# 
+# nc_close(nc_lme)
+
+# better to cut LME data first then montly averadge and LME average 
+# NOTE, there is no LME 0 
+# 2. weighted.mean by LME to plot trends 
+
+# 1961-1980 on repeat for climate spin-up
+
+## other approach 
+# # read in shapefile (st_read from sf) - not sure how to do the same for nc LME files... 
+# shape<-st_read("/Users/juliab6/Dropbox/FishMIP 2020:21/FishMIP Repos/LME66/LMEs66.shp")
+
+# read in netcdf (brick from raster) # creates a raster file, same as stack but fater and less flexible 
+# boats<-brick("boats_ipsl-cm6a-lr_nobasd_historical_histsoc_default_tc_global_monthly_1950_2014.nc")
+# 
+# extent(boats) <- extent(shape)
+# crs(boats) <- crs(shape) 
+# dim and plot here as above/below
+
+# # corp LME and consider only catch by LME (crop from raster)- problem here is that we don't have the LME 0 but could create 
+# temp<-crop(boats, extent(shape))
+# boats_lme<-mask(boats, shape)
+# plot(boats_lme[[780]])
+
+# library(dplyr)
+# se_aus<-shape[46,] # south east Australia
+# temp<-crop(boats, extent(se_aus))
+# boats_seaus<-mask(temp, se_aus)
+# plot(boats_seaus[[780]])
+
+# extract data 
+# ts_se_aus<-extract(boats_seaus, se_aus, fun=mean, na.rm=T, exact=FALSE, weights=FALSE,
+#    normalizeWeights=T, cellnumbers=FALSE, small=TRUE, df=T, layer=0, nl=780, 
+#    factors=FALSE, sp=FALSE)
+
+######## end CN 
+
+# keep going with example ----
+
+# plot one year/month 
+ndvi.slice <- ndvi.array[, , 1]
+dim(ndvi.slice)
+image(ndvi.slice)
+
+# WARNING - not sure how we decide lon = x and lat = y .... 
+r <- raster(t(ndvi.slice), xmn=min(lon), xmx=max(lon), ymn=min(lat), ymx=max(lat), crs=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs+ towgs84=0,0,0"))
+
+# r <- flip(r, direction='y')
+
+plot(r)
+
+# extract data for a study site
+# First, we will need to convert the entire 3d array of data to a raster brick
+# WARNING not sure of this step - how do I check the lat/long in terms of x/y?? this is opposite as above ... 
+r_brick <- brick(ndvi.array, xmn=min(lat), xmx=max(lat), ymn=min(lon), ymx=max(lon), crs=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs+ towgs84=0,0,0"))
+
+# WARNING - not sure of this step - how do I check??? 
+# note that you may have to play around with the transpose (the t() function) and flip() before the data are oriented correctly. In this example, the netcdf file recorded latitude on the X and longitude on the Y, so both a transpose and a flip in the y direction were required.
+# r_brick <- flip(t(r_brick), direction='y')
+
+# extract specific coordinates (of a random grid cell)
+toolik_lon <- 42.5
+toolik_lat <- 7.5
+toolik_series <- extract(r_brick, SpatialPoints(cbind(toolik_lon,toolik_lat)), method='simple')
+
+# plot time series 
+toolik_df <- data.frame(month= seq(from=min(t), to=max(t), by=1), NDVI=t(toolik_series))
+ggplot(data=toolik_df, aes(x=month, y=NDVI, group=1)) +
+  geom_line() + 
+  ggtitle("Monthly intpp random grid cell") + 
+  theme_bw() 
+
+# difference between 2 months of 2 different years 
+ndvi.slice.2012 <- ndvi.array[, , 31] # random
+
+# calculate difference
+ndvi.diff <- ndvi.slice.2012 - ndvi.slice
+
+r_diff <- raster(t(ndvi.diff), xmn=min(lon), xmx=max(lon), ymn=min(lat), ymx=max(lat), crs=CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs+ towgs84=0,0,0"))
+
+plot(r_diff)
+
+```

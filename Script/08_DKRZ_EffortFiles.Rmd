@@ -1,0 +1,267 @@
+---
+title: "09_DKRZ_EffortFiles"
+author: "Camilla Novaglio"
+date: "13/07/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The **AIM** of this file is to clean final files catch and effort to upload to DKRZ 
+
+Latest effort file from 06_Extrapolation_forSpinUp: *effort_histsoc_1841_2017.csv*
+Latest catch data from 07_catch_data *catch_histsoc_1869_2017.csv*
+
+## set environment 
+
+```{r}
+
+rm(list=ls())
+
+library(tidyverse)
+library(dtplyr)
+library(tictoc)
+library(data.table)
+library(mgcv)
+library(gridExtra)
+
+select<-dplyr::select
+
+```
+
+## effort data load and clean 
+
+```{r}
+
+yannick_dir_new <- "/rd/gem/private/users/yannickr"
+
+# effort<-read_csv(file.path(yannick_dir_new, "effort_histsoc_1841_2017.csv"))
+# effort<-read_csv(file.path(yannick_dir_new, "effort_histsoc_1850_2017_discards.csv")) # no need see comment on discards in 06 and 07
+effort<-read_csv(file.path(yannick_dir_new, "effort_histsoc_1841_2017_EEZ.csv"))
+head(effort)
+
+# check it's the latest version - OK - do stat filename in terminal 
+# trial<-filter(effort, Phase == "transition")
+# sort(unique(trial$Year))
+# unique(effort$Year)
+
+# sort the dataset 
+# effort2<-arrange(effort, Year, LME, eez_country_name, SAUP, Gear, FGroup, Sector)
+
+# Check with original file - all OK
+check<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated.csv"))
+# head(check)
+
+unique(effort$Year)
+unique(check$Year)
+sort(unique(effort$LME))
+sort(unique(check$LME))
+sort(unique(effort$eez_country_name))
+sort(unique(check$eez_country_name)) # different - we are using EEZ instead of administrative coutry
+sort(unique(effort$SAUP))
+sort(unique(check$SAUP))
+sort(unique(effort$Gear))
+sort(unique(check$Gear))
+sort(unique(effort$FGroup))
+sort(unique(check$FGroup)) # "Unknown_EEZ" removed in 06 as per Yannick's comment
+
+```
+
+## catch data load and clean 
+
+```{r}
+
+catch<-read_csv(file.path(yannick_dir_new, "catch_histsoc_1869_2017_EEZ.csv"))
+nrow(catch)
+
+# calculate catch as sum of reported and IUU, discards are generally not considered (Reg's comment in 07_catch_data.rmd)
+# WARNING - this is done in 06_spinUp too 
+# catch$Catch<-catch$Reported + catch$IUU  
+# other version with Disacrds - no need for total catch 
+# catch$Catch<-catch$Reported + catch$IUU + catch$Discards 
+# head(catch)
+
+
+```
+
+## SAUP codes
+
+```{r}
+
+saup<-read_csv(file.path(yannick_dir_new, "SAUPcode_to_Country.csv"))
+
+colnames(saup)<-c("Country_name","SAUP","ISO3","Region")
+
+# catch<-catch %>% 
+#   full_join(select(saup, -c(Country_name, Region))) %>% 
+#   select(-c(FCountryName,ISO3))
+# 
+# # MISTAKE - it should have been left_join. but OK as no data has been added, only SAUP codes (empty records). 
+# trial<-filter(catch, is.na(Reported))
+# # View(trial)
+
+# CORRECTION - in DKRZ (1/08/2022)
+
+catch<-catch %>% 
+  left_join(select(saup, -c(Country_name, Region))) %>% 
+  select(-c(FCountryName,ISO3))
+
+trial<-filter(catch, is.na(Reported))
+nrow(catch)
+
+# # matching years before checking 
+# catch_comapre<-catch %>% 
+#   filter(Year>=1950) %>% 
+#   left_join(select(saup, -ISO3, -Region))
+# 
+# effort_comapre<-effort %>% 
+#   filter(Year >= 1950) %>% 
+#   left_join(select(saup, -ISO3, -Region))
+# 
+# head(effort_comapre)
+# head(catch_comapre)
+# 
+# # # check effort and catch match 
+# sort(unique(effort_comapre$Year))
+# sort(unique(catch_comapre$Year))
+# sort(unique(effort_comapre$LME))
+# sort(unique(catch_comapre$LME))
+# sort(unique(effort_comapre$eez_country_name))
+# sort(unique(catch_comapre$eez_country_name))
+# sort(unique(effort_comapre$SAUP))
+# sort(unique(catch_comapre$SAUP)) # not matching! a lot more in catch than effort file
+# setdiff(sort(unique(catch_comapre$SAUP)),sort(unique(effort_comapre$SAUP)))
+# setdiff(sort(unique(effort_comapre$SAUP)),sort(unique(catch_comapre$SAUP)))
+# sort(unique(effort_comapre$FGroup))
+# sort(unique(catch_comapre$FGroup))
+# 
+# # Check discrepancy catch and effort 
+# 
+# # only in catch: 
+# a<-filter(catch_comapre, SAUP %in%  setdiff(sort(unique(catch_comapre$SAUP)),sort(unique(effort_comapre$SAUP))))
+# a<-unique(a[,c(2,11)])
+# View(a)
+# 
+# a<-filter(effort_comapre, SAUP %in%  setdiff(sort(unique(effort_comapre$SAUP)),sort(unique(catch_comapre$SAUP))))
+# a<-unique(a[,c(3,10)])
+# View(a)
+
+```
+
+## LME codes
+
+```{r}
+
+# lme<-read_csv(file.path(yannick_dir_new, "LMESeq.csv"))
+lme<-read_csv(file.path(yannick_dir_new, "Reg_catchData/LMECells.csv")) # with names 
+
+```
+
+## save final data 
+
+```{r}
+
+# provide only to experiment and overwrite phase
+effort2<-effort %>% 
+  filter(Year <= 2010) %>% 
+  mutate(Phase = ifelse(Year < 1961, "transition", "experiment"))
+
+# rearrange columns 
+effort2<-effort2[,c("Year","Sector", "LME", "eez_country_name","SAUP", "Gear", "FGroup", "NomActive", "Phase")]
+head(effort2)
+
+# Amer Samoa is outside LME so OK 
+unique(effort2$Year)
+trial<-effort2 %>% filter(eez_country_name == "Italy")
+unique(trial$Year)
+
+effort3<-effort2 %>% 
+  arrange(LME, eez_country_name, Year)
+unique(effort3$Year)
+head(effort3)
+
+nrow(effort2)
+nrow(effort3)
+
+catch2<-catch %>% 
+  filter(Year <= 2004) # %>% 
+  # select(-eez_country_code,-Reported,-IUU,-Discards) %>% # make as similar as possible to effort? not sure about these fields / option with Discards in total catch also has the 3 columns of catches  
+  # mutate(Phase = ifelse(Year < 1961, "spin-up", "calibration")) # I don't need a phase here as none is used for experiment or spin-up but all is used for calibration ?? 
+
+# head(catch2)
+catch3<-catch2[,c("Year","Sector", "LME", "eez_country_name","SAUP", "FGroup", "Reported", "IUU", "Discards")]
+head(catch3)
+
+catch3<-catch3 %>% 
+  arrange(LME, eez_country_name, Year)
+
+unique(catch3$Year) # not all LME/eez etc have data for all years
+head(catch3)
+
+nrow(catch2)
+nrow(catch3)
+
+# check EEZ 
+# STILL NEED TO CHECK - make sure that EEZ in this file are ok compared to EEZ in effort and catch file - they are less in catch files and you need to check whether this si an issue or not
+yannick_dir <- "/rd/gem/private/users/yannickr"
+(EEZ <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv"))) 
+ 
+#EEZ data is duplicated in places because of disputed claims to cells - just going to take the first country listed
+(EEZ_disputes <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv")) %>% filter(DISPUTED==TRUE))
+
+(take_first <- EEZ_disputes[!duplicated(EEZ_disputes[c("Lon", "Lat")]),])
+
+head(EEZ) # CN - might need to change aggregation levels - use the FAOname as the  Admin_Country aggregates EEZ that are under the same administrative country. 
+unique(EEZ[,c("CNumber", "FAOname", "A_Code", "Admin_Country")])
+# View(unique(EEZ[,c("CNumber", "FAOname")]))
+length(unique(EEZ$CNumber)) ## WARNING - should we consider both CNumber and FAOname or only FAOname?? are they the same? 
+length(unique(EEZ$FAOname))
+
+(EEZ_adj <- bind_rows(EEZ %>% 
+            filter(DISPUTED == FALSE),
+          take_first) %>% 
+  # select(Lat, Lon, A_Code, Admin_Country) %>% # CN changed - we need the EEZ and not the administrative country
+  select(Lat, Lon, CNumber, FAOname) %>%
+  # rename(eez_country_code = A_Code,
+        # eez_country_name = Admin_Country) %>% # CN same as above
+  rename(eez_country_code = CNumber,
+         eez_country_name = FAOname) %>%
+   distinct())
+
+united_coords <- EEZ_adj %>% unite("coords", c("Lon", "Lat"), sep = " ")
+
+EEZ_adj <- EEZ_adj[-which(duplicated(united_coords[,"coords"])==TRUE),] %>% as.data.table() # remove duplicated EEZ records
+EEZ_adj <- lazy_dt(EEZ_adj)
+
+
+
+
+
+# final effort 
+dkrz<-"/rd/gem/private/users/yannickr/DKRZ_EffortFiles/"
+fwrite(x = effort3, file.path(dkrz, "effort_histsoc_1841_2010_revised.csv")) # needs to be at 1841 because it needs to match the climate inputs # NOTE this has been renamed _adminCountry via terminal if (in previous version) you used the administrative country and a new file with the original name has been created when you used EEZ instead of admin country  
+## NOTE - this last version has now be named _revised to send to Villy for checking. Same for catch
+
+# fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1850_2010.csv")) # NOTE this has been renamed _adminCountry as EEZ used was the administrative country - no new file created as no need 
+# fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1850_2010_discards.csv")) # no need for this - see comment on discards in 06 and 07 # to create this it was also considered the administrative country
+
+# final catch 
+fwrite(x = catch3, file.path(dkrz, "calibration_catch_histsoc_1850_2004_revised.csv")) # NOTE this has been renamed _adminCountry via terminal if (in previous version) you used the administrative country and a new file with the original name has been created when you used EEZ instead of admin country  
+# fwrite(x = catch3, file.path(dkrz, "calibration_catch_histsoc_1850_2004_discards.csv")) # no need for this as we don't need total catches in catch file but let the modeler choose. * need to specify somewhere in protocol that effort is based on reported + IUU and discards are inaccurate. 
+
+# LME codes 
+# fwrite(x = lme, file.path(dkrz, "LMEnames.csv"))
+
+# SAUP codes 
+# fwrite(x = saup, file.path(dkrz, "SAUPnames.csv"))
+
+# upload to DKRZ
+# scp -r DKRZ_EffortFiles/* b381217@levante.dkrz.de:/home/b/b381217/temp_effort/
+
+# latest updated and uploads to DKRZ
+# Effort file in DKRZ on 28/07/2022 (last printed from this script and from 06 and last uploaded on DKRZ)
+# catch file in DKRZ on 01/08/2022 (last printed from this script adn last uploaded on DKRZ. Difference from the 28th version is only that I removed SAUP where catches were NAs and that got there because of a full_join instead of a left_join - see line 104)
+
+# email to Fishmip community from Julia re updated and final data 29/07/2022 night and 30/07/2022 
+
+```

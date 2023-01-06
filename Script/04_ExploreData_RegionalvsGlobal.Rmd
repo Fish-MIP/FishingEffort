@@ -89,7 +89,7 @@ summarise<-dplyr::summarise
 
 # New aggregation including gear 
 yannick_dir <- "/rd/gem/private/users/yannickr"
-effort<-read_csv(file.path(yannick_dir, "effort_histsoc_1961_2010.csv")) # OR all_effort_aggregated.csv as the first is still to be checked 
+effort<-read_csv(file.path(yannick_dir, "effort_histsoc_1961_2010.csv")) # OR all_effort_aggregated.csv as the first is still to be checked or all_effort_aggregated_EEZ.csv as latest version - see 02 and 03 scripts 
 # effort<-effort[2:nrow(effort), 2:ncol(effort)]
 head(effort)
 

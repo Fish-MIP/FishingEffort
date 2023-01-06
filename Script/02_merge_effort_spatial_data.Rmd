@@ -4,52 +4,53 @@ editor_options:
 ---
 Install libraries in dependency order
 ```{r}
-install.packages("highr")
-install.packages("stringi")
-install.packages("stringr")
-install.packages("knitr")
-install.packages("purrr")
-install.packages("fansi")
-install.packages("utf8")
-install.packages("R6")
-install.packages("pkgconfig")
-install.packages("tibble")
-install.packages("dplyr")
-install.packages("data.table")
-install.packages("sp")
-install.packages("sf")
-install.packages("splancs")
-install.packages("dtplyr")
-install.packages("geoR")
-install.packages("digest")
-install.packages("htmltools")
-install.packages("ps")
-install.packages("assertthat")
-install.packages("gtable")
-install.packages("processx")
-install.packages("prettyunits")
-install.packages("fs")
-install.packages("xml2")
-install.packages("colorspace")
-install.packages("munsell")
-install.packages("scales")
-install.packages("backports")
-install.packages("tidyverse")
-install.packages("tictoc")
-install.packages("vroom")
-install.packages("raster")
-install.packages("farver")
-install.packages("labeling")
+
+# install.packages("highr")
+# install.packages("stringi")
+# install.packages("stringr")
+# install.packages("knitr")
+# install.packages("purrr")
+# install.packages("fansi")
+# install.packages("utf8")
+# install.packages("R6")
+# install.packages("pkgconfig")
+# install.packages("tibble")
+# install.packages("dplyr")
+# install.packages("data.table")
+# install.packages("sp")
+# install.packages("sf")
+# install.packages("splancs") # CN ERROR
+# install.packages("dtplyr")
+# install.packages("geoR") # CN ERROR
+# install.packages("digest")
+# install.packages("htmltools")
+# install.packages("ps")
+# install.packages("assertthat")
+# install.packages("gtable")
+# install.packages("processx")
+# install.packages("prettyunits")
+# install.packages("fs")
+# install.packages("xml2")
+# install.packages("colorspace")
+# install.packages("munsell")
+# install.packages("scales")
+# install.packages("backports")
+# install.packages("tidyverse")
+# install.packages("tictoc")
+# install.packages("vroom")
+# install.packages("raster")
+# install.packages("farver")
+# install.packages("labeling")
 install.packages("ggpubr")
-install.packages("here")
-install.packages("RColorBrewer")
-
-
+# install.packages("here")
+# install.packages("RColorBrewer")
 
 ```
 
 Libraries
 ```{r}
+
+rm(list=ls())
 
 library(tidyverse)
 library(dtplyr)
@@ -59,11 +60,10 @@ library(here)
 library(vroom)
 library(parallel)
 library(tictoc)
-library(geoR)
+library(geoR) # CN ERROR  
 library(raster)
 library(here)
 library(RColorBrewer)
-
 
 select <- dplyr::select
 
@@ -76,6 +76,7 @@ aggregated_files_dir <- "/rd/gem/private/users/yannickr/effort_mapped_by_country
 ```
 
 Explore files and join the main data
+
 ```{r}
 (EEZ <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv"))) 
  
@@ -86,14 +87,19 @@ Explore files and join the main data
 
 head(EEZ) # CN - might need to change aggregation levels - use the FAOname as the  Admin_Country aggregates EEZ that are under the same administrative country. 
 unique(EEZ[,c("CNumber", "FAOname", "A_Code", "Admin_Country")])
+# View(unique(EEZ[,c("CNumber", "FAOname")]))
+length(unique(EEZ$CNumber)) ## WARNING - should we consider both CNumber and FAOname or only FAOname?? are they the same? 
+length(unique(EEZ$FAOname))
 
-     
 (EEZ_adj <- bind_rows(EEZ %>% 
             filter(DISPUTED == FALSE),
           take_first) %>% 
-  select(Lat, Lon, A_Code, Admin_Country) %>% 
-   rename(eez_country_code = A_Code, 
-          eez_country_name = Admin_Country) %>% 
+  # select(Lat, Lon, A_Code, Admin_Country) %>% # CN changed - we need the EEZ and not the administrative country
+  select(Lat, Lon, CNumber, FAOname) %>%
+  # rename(eez_country_code = A_Code,
+        # eez_country_name = Admin_Country) %>% # CN same as above
+  rename(eez_country_code = CNumber,
+         eez_country_name = FAOname) %>%
    distinct())
 
 united_coords <- EEZ_adj %>% unite("coords", c("Lon", "Lat"), sep = " ")
@@ -103,19 +109,19 @@ EEZ_adj <- lazy_dt(EEZ_adj)
 
 #check EEZ data - EEZs look ok
 
-EEZ_xyz <- EEZ_adj %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=eez_country_code) %>%  select(x,y,z)  
+# EEZ_xyz <- EEZ_adj %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=eez_country_code) %>%  select(x,y,z)  # CN adjust as per above 
+EEZ_xyz <- EEZ_adj %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=eez_country_code) %>%  select(x,y,z) 
 EEZ_raster <- raster::rasterFromXYZ(EEZ_xyz)
 
 ggplot(data = EEZ_xyz)+
   geom_tile(aes(x=x, y=y, fill=z)) + 
   scale_fill_gradientn(colours = RColorBrewer::brewer.pal(n = 9, name = "Spectral"))
 
-ggsave(filename = here("Explore/cottrell-explore/eez_wo_duplicates.jpg"), dpi=300, device = "jpg", width = 9, height = 5)
+ggsave(filename = here("Explore/cottrell-explore/eez_wo_duplicates_CN.jpg"), dpi=300, device = "jpg", width = 9, height = 5)
 
 #LME data
 (LMEs <- fread(file.path(yannick_dir, "LMESeq.csv")))
 LMEs <- lazy_dt(LMEs)
-
 
 #FAO regions data
 (FAO_regions <- readRDS(file.path(yannick_dir, "Cells_LatLon_FAO_regions.rds")) %>% 
@@ -123,15 +129,12 @@ LMEs <- lazy_dt(LMEs)
 
 FAO_regions <- lazy_dt(FAO_regions)
 
-
 # Looking at the CNumber - this appears the be the iso3n code for the country. This is often the name the same as the admin country but is different when the land masses are territories of other countries
-
 
 #The data have different rows. Want to make sure they line up
 nrow(EEZ_adj) #179904
 nrow(as_tibble(LMEs)) #259200
 nrow(FAO_regions) #229369
-
 
 #Some LME data are around that have no FAO or EEZ data
 (all_spatial_layers <- 
@@ -139,11 +142,11 @@ nrow(FAO_regions) #229369
             y = EEZ_adj %>% select(Lon, Lat, eez_country_code, eez_country_name), by = c("Lon", "Lat")) %>% as_tibble()
 )
 
+# CN WARNING - not sure I understant this
 missing_fao_eez <- 
   all_spatial_layers %>% 
   filter(is.na(fao_area)) %>% #29831 where FAO areas are NA but LME are not
   filter(is.na(eez_country_code)) #29830 where EEZ are NA but LME are not - this does not change depending on order. So there is one cell where the is LME data and EEZ data but not FAO area data
-
 
 ```
 
@@ -153,11 +156,16 @@ Make a function that will speedily import and merge the data files
 
 join_effort_data <- function(this_file_name){
   
+  # trial 
+  # this_file_name = "mapped_1952_I_678.csv"
+  
   this_source_path <- file.path("/rd/gem/private/users/yannickr/effort_mapped_bycountry", this_file_name)
   
-  this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated/", "aggregated_", this_file_name)
+  # this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated/", "aggregated_", this_file_name) 
+  # CN this version consideres EEZ aggregation using EEZ FAOname instead of the administrative country name. 
+  this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_EEZ/", "aggregated_EEZ_", this_file_name)
   
-  if(file.exists(this_destination_path)){
+  # if(file.exists(this_destination_path)){ # CN - why this? the file does not exist
     
     Year <- as.numeric(str_extract(this_file_name, pattern =  "([[:digit:]])+"))
     
@@ -192,7 +200,7 @@ join_effort_data <- function(this_file_name){
     #                         by = list(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector )][,"GT"]
     #   )[, `:=`(Year = Year)]
     
-    #dtplyr approach
+    # dtplyr approach
     these_aggregated_data <-
       these_data %>%
       left_join(LMEs, by=c("Lat", "Lon")) %>%
@@ -207,7 +215,7 @@ join_effort_data <- function(this_file_name){
       mutate(Year = Year) %>% as.data.table()
     
     fwrite(x = these_aggregated_data, file = file.path(this_destination_path))
-  }
+  # }
   
 }
 
@@ -215,7 +223,9 @@ join_effort_data <- function(this_file_name){
 ```
 
 Run the code on all 30,000 files and write them to folder
+
 ```{r}
+
 #compressed_effort_files <- list.files(file.path(compressed_effort_dir), full.names = TRUE)
 original_effort_files <- list.files(file.path(original_effort_dir), pattern = ".csv")
 
@@ -235,14 +245,17 @@ for(i in 1:length(effort_list_split)){
 }
 toc()
 4679.399/3600 #1.3 hours to run
-```
 
+```
 
 Check the files
 
 ```{r}
 #check the files
-newly_written_files <- list.files(file.path(yannick_dir, "effort_mapped_by_country_aggregated"), full.names = TRUE)
+# newly_written_files <- list.files(file.path(yannick_dir, "effort_mapped_by_country_aggregated"), full.names = TRUE)
+
+# CN consider the EEZ version as explained above 
+newly_written_files <- list.files(file.path(yannick_dir, "effort_mapped_by_country_aggregated_EEZ"), full.names = TRUE)
 
 #pick one randomly 
 map(newly_written_files[[8]], fread)
@@ -253,7 +266,9 @@ Combine all listed files to one file
 
 combined_aggregated_effort <- rbindlist(mclapply(X = newly_written_files, FUN = fread, mc.cores = 40))
 
-fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated.csv"))
+# fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated.csv"))
+# CN consider the EEZ version as explained above 
+fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated_EEZ.csv"))
 
 ```
 
