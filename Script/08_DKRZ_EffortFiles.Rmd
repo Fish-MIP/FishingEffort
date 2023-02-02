@@ -240,7 +240,7 @@ EEZ_adj <- lazy_dt(EEZ_adj)
 # final effort 
 dkrz<-"/rd/gem/private/users/yannickr/DKRZ_EffortFiles/"
 fwrite(x = effort3, file.path(dkrz, "effort_histsoc_1841_2010_revised.csv")) # needs to be at 1841 because it needs to match the climate inputs # NOTE this has been renamed _adminCountry via terminal if (in previous version) you used the administrative country and a new file with the original name has been created when you used EEZ instead of admin country  
-## NOTE - this last version has now be named _revised to send to Villy for checking. Same for catch
+## NOTE - this last version has now be named _revised to send to Villy for checking. Same for catch. it has also been uploaded to DKRZ and named "effort_histsoc_1841_2010.csv" - i.e. without "revised". Same for catch. 
 
 # fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1850_2010.csv")) # NOTE this has been renamed _adminCountry as EEZ used was the administrative country - no new file created as no need 
 # fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1850_2010_discards.csv")) # no need for this - see comment on discards in 06 and 07 # to create this it was also considered the administrative country
