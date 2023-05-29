@@ -33,11 +33,17 @@ aggregated_files_dir <- "/rd/gem/private/users/yannickr/effort_mapped_by_country
 
 # Explore files and join the main data
 
-WARNING CN - see end of session and ask Julia
-
 ```{r}
 
 (EEZ <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv"))) 
+
+## CN how many before we filter? 
+EEZ_tot<-EEZ %>% 
+  filter(FAOname != "High Seas") %>% 
+  select(FAOname, CNumber) %>% 
+  unique()
+
+nrow(EEZ_tot) # 193
  
 #EEZ data is duplicated in places because of disputed claims to cells - just going to take the first country listed
 (EEZ_disputes <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv")) %>% filter(DISPUTED==TRUE))
@@ -144,7 +150,7 @@ nrow(missing_eez) # 79296
 missing_eez2<-missing_eez %>% 
   filter(LME != 0) # remove LME 0 and EEZ NAs which could be land and open ocean 
 nrow(missing_eez2) # 4303 - these should not be NAs: if they were outside EEZ and withing LME they should be labelled as 0s. Possible reason for discrepancy: different land-ocean mask between LME and EEZ  
-# check single EEZ/LME combination. 
+# check single EEZ/LME combination. File found in yannickr folder transformed in cvs (CN).
 FAO_LME_keys_yannick <- read_csv("/rd/gem/private/users/yannickr/LME_FAO_coding_CN.csv")
 lme_codes<-FAO_LME_keys_yannick %>% 
   filter(LME_FAO_code == "LME") %>% 
@@ -164,8 +170,8 @@ plot(trial_raster)
 # 56 could be? 
 # 18 yes ... 
 
-## Could this be problematic - e.g. coastal effort considered for LMEs and not EEZs? ASK JULIA
-# should we use the FAO_LME and FAO_EEZ interaction masks provided by Denisse (+FAO regions column) instead of LME and EEZ columns? 
+## Could this be problematic - e.g. coastal effort considered for LMEs and not EEZs? Asked Julia - do trials below and plot outputs 
+# should we use the FAO_LME and FAO_EEZ interaction masks provided by Denisse (+FAO regions column) instead of LME and EEZ columns? Use them both and check outputs. 
 
 ```
 
@@ -201,64 +207,45 @@ FAO_LME <- read_csv("/rd/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/FAO
 # # check LME and FAO regions
 # sort(unique(as.data.table(LMEs)$LME)) # LME should be from 1 to 66 
 # sort(unique(as.data.table(FAO_regions)$fao_area)) # FAO area should be: 18 21 27 31 34 37 41 47 48 51 57 58 61 67 71 77 81 87 88
-# # Instead I have 83 ID because 3 FAO area ovelap with LMEs (e.g. mediterranean sea - see Denisse's email on 9/05/23 RE: Catch and effort forcing for 3a)
+# # Instead I have 83 ID because 3 FAO area overlap with LMEs (e.g. mediterranean sea - see Denisse's email on 9/05/23 RE: Catch and effort forcing for 3a)
 # length(unique(FAO_LME$ID_merged))
 
 # codes 
 FAO_LME_keys <- read_csv("/rd/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/FAO-LME_masks/FAO_LME_keys.csv")
 
-head(FAO_LME)
-head(FAO_LME_keys)
-View(FAO_LME_keys)
+# nrow(FAO_LME_keys)
+# View(FAO_LME_keys)
+# # WARNING - repetitions: 61,71,81,88
+FAO_LME_keys<-unique(FAO_LME_keys)
+# nrow(FAO_LME_keys)
 
-# clear difference between FAOs and LMEs:  
-FAO_LME_keys$code<-"LME"
-FAO_LME_keys[1:21,"code"]<-"FAO"
+# integrate info that Denisse provided on LME names 
+LME_names <- read_csv("/rd/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/FAO-LME_masks/LME_names.csv")
 
-FAO_keys<-FAO_LME_keys[1:21,] # all FAO codes and names are OK - checked with website below 
-LME_keys<-FAO_LME_keys[22:nrow(FAO_LME_keys),] # LME list as per website ---- ARRIVATA QUI
+# nrow(LME_names) # 66
 
-new_LME_key<- data.frame(LME_number = c(1,18,35,52,2,19,36,53,3,20,37,54,4,21,38,55,5,22,39,56,6,23,40,57,7,24,41,58,8,25,42,59,9,26,43,60,10,27,44,61,11,28,45,62,12,29,46,63,13,30,47,64,14,31,48,65,15,32,49,66,16,33,50,17,34,51), name_merge = c("East Bering Sea","West Greenland Shelf","Gulf of Thailand","Sea of Okhotsk","Gulf of Alaska","East Greenland Shelf","South China Sea","West Bering Sea","California Current","Barents Sea","Sulu-Celebes Sea","Northern Bering - Chukchi Seas","Gulf of California","Norwegian Sea","Indonesian Sea","Beaufort Sea","Gulf of Mexico","North Sea","North Australian Shelf","East Siberian Sea","Southeast U.S. Continental Shelf","Baltic Sea","Northeast Australian Shelf","Laptev Sea","Northeast U.S. Continental Shelf","Celtic-Biscay Shelf","East Central Australian Shelf","Kara Sea","Scotian Shelf","Iberian Coastal","Southeast Australian Shelf","Iceland Shelf and Sea","Newfoundland-Labrador Shelf","Mediterranean Sea","South West Australian Shelf","Faroe Plateau","Insular Pacific-Hawaiian","Canary Current","West Central Austalian Shelf","Antarctica","Pacific Central-American Coastal","Guinea Current","Northwest Australian Shelf","Black Sea","Caribbean Sea","Benguela Current","New Zealand Shelf","Hudson Bay Complex","Humboldt Current","Agulhas Current","East China Sea","Central Arctic","Patagonian Shelf","Somali Coastal Current","Yellow Sea","Aleutian Islands","South Brazil Shelf", "Arabian Sea","Kuroshio Current","Canadian High Arctic - North Greenland","East Brazil Shelf", "Red Sea", "Sea of Japan","North Brazil Shelf","Bay of Bengal", "Oyashio Current"))
+FAO_LME_keys<-FAO_LME_keys %>% 
+  full_join(LME_names)
 
-View(LME_keys %>% arrange(name_merge))
-View(new_LME_key %>% arrange(name_merge))
+# combine with FAO_LME
+FAO_LME_keys_new<-FAO_LME_keys %>% 
+  mutate(Sector = ifelse(is.na(original_lme_id), "FAO", "LME"),
+         ID_original = ifelse(is.na(original_lme_id), ID_merged, original_lme_id),
+         LME_FAO = paste(Sector, ID_original, sep = "_")) %>% 
+  select(ID_merged, LME_FAO)
 
-# match - some discrepancies: 
-new_LME_key_all<-new_LME_key %>% full_join(LME_keys)
+# nrow(FAO_LME_keys_new) # 83
 
-# # check Yannick's codes # found in yannickr folder transformed in cvs (CN). Manually modified FAO region names according to Denisse's mask and codes from website. though here checking only LME as that's the problematic one 
-# FAO_LME_keys_yannick <- read_csv("/rd/gem/private/users/yannickr/LME_FAO_coding_CN.csv")
-# LME_keys_Y<-filter(FAO_LME_keys_yannick, LME_FAO_code == "LME") %>% 
-#   rename(name_merge=LME_FAO_name)
-# 
-# # match - some discrepancies here too.... 
-# new_LME_key_Y<-new_LME_key %>% full_join(LME_keys_Y)
+FAO_LME_new<-FAO_LME %>% 
+  full_join(FAO_LME_keys_new) %>% 
+  select(-ID_merged)
 
-# work on Denisse's codes - some can be corrected for: 
-filter(new_LME_key_all, is.na(LME_number) | is.na(ID_merged))
+# nrow(FAO_LME) # 173371
+# nrow(FAO_LME_new) # 173371
 
-LME_keys2<-LME_keys %>% 
-  mutate(name_merge = case_when(
-    name_merge == "Labrador - Newfoundland" ~ "Newfoundland-Labrador Shelf", 
-    name_merge == "Northeast U.S. Continental She" ~ "Northeast U.S. Continental Shelf",
-    name_merge == "Southeast U.S. Continental She" ~ "Southeast U.S. Continental Shelf",
-    name_merge == "Pacific Central-American Coast" ~ "Pacific Central-American Coastal", 
-    name_merge == "West Central Australian Shelf" ~ "West Central Austalian Shelf", #### NEED TO CHECK THIS ... as should be the opposite as in correct name
-    name_merge == "Greenland Sea" ~ "Greenland Sea", # PROBLEM 
-    name_merge == "Canadian Eastern Arctic - West" ~ "Canadian Eastern Arctic - West", # PROBLEM 
-    name_merge == "Canadian High Arctic - North G" ~ "Canadian High Arctic - North Greenland",
-    TRUE ~ name_merge))
+# use this file for the aggregation and check outputs
 
-new_LME_key_all2<-new_LME_key %>% full_join(LME_keys2)
-filter(new_LME_key_all2, is.na(LME_number) | is.na(ID_merged))
-
-# I guess these are: 
-LME_keys3<-LME_keys2 %>% 
-  mutate(name_merge = case_when(
-    name_merge == "Greenland Sea" ~ "East Greenland Shelf", 
-    name_merge == "Canadian Eastern Arctic - West" ~ "West Greenland Shelf", 
-    TRUE ~ name_merge))
-
+# further checks 
 # # from https://iwlearn.net/marine/lmes/list
 # 1: East Bering Sea	
 # 18: West Greenland Shelf	
@@ -326,8 +313,13 @@ LME_keys3<-LME_keys2 %>%
 # 17: North Brazil Shelf	
 # 34: Bay of Bengal	
 # 51: Oyashio Current	
-
-### FAO AREA FROM WEBSITE
+# 
+# LME_key_check<- data.frame(LME_number = c(1,18,35,52,2,19,36,53,3,20,37,54,4,21,38,55,5,22,39,56,6,23,40,57,7,24,41,58,8,25,42,59,9,26,43,60,10,27,44,61,11,28,45,62,12,29,46,63,13,30,47,64,14,31,48,65,15,32,49,66,16,33,50,17,34,51), name_merge = c("East Bering Sea","West Greenland Shelf","Gulf of Thailand","Sea of Okhotsk","Gulf of Alaska","East Greenland Shelf","South China Sea","West Bering Sea","California Current","Barents Sea","Sulu-Celebes Sea","Northern Bering - Chukchi Seas","Gulf of California","Norwegian Sea","Indonesian Sea","Beaufort Sea","Gulf of Mexico","North Sea","North Australian Shelf","East Siberian Sea","Southeast U.S. Continental Shelf","Baltic Sea","Northeast Australian Shelf","Laptev Sea","Northeast U.S. Continental Shelf","Celtic-Biscay Shelf","East Central Australian Shelf","Kara Sea","Scotian Shelf","Iberian Coastal","Southeast Australian Shelf","Iceland Shelf and Sea","Newfoundland-Labrador Shelf","Mediterranean Sea","South West Australian Shelf","Faroe Plateau","Insular Pacific-Hawaiian","Canary Current","West Central Austalian Shelf","Antarctica","Pacific Central-American Coastal","Guinea Current","Northwest Australian Shelf","Black Sea","Caribbean Sea","Benguela Current","New Zealand Shelf","Hudson Bay Complex","Humboldt Current","Agulhas Current","East China Sea","Central Arctic","Patagonian Shelf","Somali Coastal Current","Yellow Sea","Aleutian Islands","South Brazil Shelf", "Arabian Sea","Kuroshio Current","Canadian High Arctic - North Greenland","East Brazil Shelf", "Red Sea", "Sea of Japan","North Brazil Shelf","Bay of Bengal", "Oyashio Current"))
+# 
+# View(LME_key_check)
+# View(LME_names) # LME 18 and 19 have different names but OK 
+# 
+### FAO AREA FROM WEBSITE - Checked all OK 
 # Area 18 # NOT IN MASK
 # ARCTIC SEA (Major Fishing Area 18)
 # Area 21
@@ -369,6 +361,34 @@ LME_keys3<-LME_keys2 %>%
 
 ```
 
+# Add interactions between EEZ and FAO 
+
+```{r}
+
+FAO_EEZ_keys <- read_csv("/rd/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/FAO_EEZ_masks/FAO_EEZ_keys.csv")
+
+FAO_EEZ_keys<-FAO_EEZ_keys %>% mutate(name_merge = gsub(" Exclusive Economic Zone", "", name_merge), 
+                        name_merge = gsub(" Exclusive economic Zone", "", name_merge),
+                        name_merge = gsub(" Exclusive Economi", "", name_merge),
+                        name_merge = gsub(" Exclusive Econo", "", name_merge))
+
+
+# check only EEZ 
+trial<-FAO_EEZ_keys[19:nrow(FAO_EEZ_keys),]
+trial<-unique(trial)
+nrow(trial) # 281 EEZ 
+sort(unique(trial$name_merge))
+
+# check with EEZ from Yannick and used for merging 
+trial2<-EEZ_adj %>% filter(eez_country_code != 0) %>% select(eez_country_code, eez_country_name) %>% unique()
+
+nrow(as.data.table(trial2)) # 186
+sort(unique(as.data.table(trial2)$eez_country_name))
+
+# SEND EMAIL TO DENISSE - DONE  
+
+```
+
 # Make a function that will speedily import and merge the data files
 
 ```{r}
@@ -382,7 +402,9 @@ join_effort_data <- function(this_file_name){
   
   # this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated/", "aggregated_", this_file_name) 
   # CN this version consideres EEZ aggregation using EEZ FAOname instead of the administrative country name. 
-  this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_EEZ/", "aggregated_EEZ_", this_file_name)
+  # this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_EEZ/", "aggregated_EEZ_", this_file_name)
+  # CN this version consideres EEZ aggregation using EEZ FAOname instead of the administrative country name (Yannick's file) and intersection between LME and FAO regions to split the high seas. Need to add the intersection between EEZ and FAO regions once the above is solved
+  this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_HighSea/", "aggregated_HighSea_", this_file_name)
   
   # if(file.exists(this_destination_path)){ # CN - why this? the file does not exist
     
@@ -425,7 +447,8 @@ join_effort_data <- function(this_file_name){
       left_join(LMEs, by=c("Lat", "Lon")) %>%
       left_join(EEZ_adj, by=c("Lat", "Lon")) %>%
       left_join(FAO_regions, by=c("Lat", "Lon")) %>%
-      group_by(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector) %>%
+      left_join(FAO_LME_new, by = c("Lat", "Lon")) %>% # CN added 
+      group_by(eez_country_name, fao_area, LME, LME_FAO, SAUP, Gear, FGroup, Sector) %>%
       summarise(NomActive = sum(NomActive, na.rm = TRUE),
                 EffActive = sum(EffActive, na.rm = TRUE),
                 NV= sum(NV, na.rm = TRUE),
@@ -437,7 +460,6 @@ join_effort_data <- function(this_file_name){
   # }
   
 }
-
 
 ```
 
@@ -473,8 +495,11 @@ Check the files
 #check the files
 # newly_written_files <- list.files(file.path(yannick_dir, "effort_mapped_by_country_aggregated"), full.names = TRUE)
 
-# CN consider the EEZ version as explained above 
-newly_written_files <- list.files(file.path(yannick_dir, "effort_mapped_by_country_aggregated_EEZ"), full.names = TRUE)
+# # CN consider the EEZ version as explained above 
+# newly_written_files <- list.files(file.path(yannick_dir, "effort_mapped_by_country_aggregated_EEZ"), full.names = TRUE)
+
+# CN consider the HighSea version as explained above 
+newly_written_files <- list.files(file.path(yannick_dir, "effort_mapped_by_country_aggregated_HighSea"), full.names = TRUE)
 
 #pick one randomly 
 map(newly_written_files[[8]], fread)
@@ -486,8 +511,11 @@ Combine all listed files to one file
 combined_aggregated_effort <- rbindlist(mclapply(X = newly_written_files, FUN = fread, mc.cores = 40))
 
 # fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated.csv"))
-# CN consider the EEZ version as explained above 
-fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated_EEZ.csv"))
+# # CN consider the EEZ version as explained above 
+# fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated_EEZ.csv"))
+
+# CN consider the HighSea version as explained above 
+fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated_HighSea.csv"))
 
 ```
 
