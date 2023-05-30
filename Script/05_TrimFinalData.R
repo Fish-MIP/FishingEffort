@@ -32,7 +32,7 @@ head(effort_new)
 # aggregate artisanal
 effort_new_Artisanal<-effort_new %>% 
   filter(Sector !="I") %>% 
-  group_by(eez_country_name, LME, SAUP, Gear, FGroup, Year) %>% # delete fao_area
+  group_by(fao_area, LME, eez_country_name, SAUP, Gear, FGroup, Year) %>% # add back fao_area - this aggregation is still needed as you are aggregating 2 artisanal efforts
   summarise(NomActive = sum(NomActive, na.rm = TRUE),
             # EffActive = sum(EffActive, na.rm = TRUE), # no need for EffActive
             NV = sum(NV, na.rm = TRUE),
@@ -46,7 +46,7 @@ head(effort_new_Artisanal)
 # aggregate industrial 
 effort_new_Industrial<-effort_new %>% 
   filter(Sector == "I") %>% 
-  group_by(eez_country_name, LME, SAUP, Gear, FGroup, Year) %>% # delete fao_area
+  group_by(fao_area, LME, eez_country_name, SAUP, Gear, FGroup, Year) %>% # add back fao_area - this aggregation might not be needed anymore but do it anyway .... 
   summarise(NomActive = sum(NomActive, na.rm = TRUE),
             # EffActive = sum(EffActive, na.rm = TRUE), # no need for EffActive
             NV = sum(NV, na.rm = TRUE),
@@ -72,7 +72,10 @@ effort_spinup<-effort_tot %>%
 
 # write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017.csv") 
 # consider new aggregation using EEZ instead of administrative country 
-write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ.csv") 
+# write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ.csv") 
+# consider new aggregation using EEZ instead of administrative country and adding FAO column for LME 0 calcaultions later on
+write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv") 
+
 
 ## NOTE: the below is not necessary anymore (besides checking) as the final effort data will include spin-up
 # all data on DKRZ are replaced with spin-up version but better to keep this version as well.  
@@ -90,7 +93,7 @@ lme42<-trial %>%
 ggplot(lme42, aes(x = Year, y = NomActive, group = Sector, color = Sector))+
   geom_line()
 
-# consider new aggregation using EEZ instead of administrative country 
+# consider new aggregation using EEZ instead of administrative country
 write.csv(trial, "/rd/gem/private/users/yannickr/effort_histsoc_1961_2010_EEZ.csv") 
 
 # load data from gem48 to isismip ----
