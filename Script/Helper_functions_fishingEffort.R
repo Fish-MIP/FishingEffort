@@ -70,14 +70,16 @@ join_effort_data <- function(this_file_name){
 effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   
   # # # trial
-  # toKeep=66
-  # kappa=4
+  # # toKeep=66
+  # toKeep = "FAO_21"
+  # kappa=6
   # war_param = "include"
   # war_decision = "no-add"
   # reference = "1945-1955"
   
   effort_extr<-effort %>% 
-    filter(LME %in% toKeep) %>% 
+    # filter(LME %in% toKeep) %>% 
+    filter(LME_FAO %in% toKeep) %>% # Changed after new classification of LME 0 into FAO regions
     group_by(Year) %>% 
     summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
     ungroup()
@@ -85,7 +87,8 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   maxYearEffort<-max(effort_extr$Year) 
   
   catch_all <- catch %>% 
-    filter(LME %in% toKeep) %>% 
+    # filter(LME %in% toKeep) %>% 
+    filter(LME_FAO %in% toKeep) %>% 
     group_by(Year) %>% 
     summarise(catch_tot = sum(catch_tot, na.rm = TRUE))
   
@@ -129,11 +132,11 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   gam_model<-gam(eval(as.name(var)) ~ s(Year, k=kappa), data=df, family=gaussian(link="log"))
   df$gam<-round(predict(gam_model,newdata = df,type='response'))
   
-  # # check the gam
-  # ylim = c(min(df$gam), max(df$gam))
-  # plot(df$Year,df[[var]],  ylim=ylim)
-  # par(new=T)
-  # plot(df$Year,df$gam,col="red",type='l', ylim=ylim)
+  # check the gam
+  ylim = c(min(df$gam), max(df$gam))
+  plot(df$Year,df[[var]],  ylim=ylim)
+  par(new=T)
+  plot(df$Year,df$gam,col="red",type='l', ylim=ylim)
   
   # predict backwards
   newd <- data.frame(Year = seq(1861, maxVar$Year))
@@ -227,7 +230,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   # 1. add missing data 
   
   # add back war time in raw catches - only if you had excluded them above
-  # WARNING - CHECK THIS 
+  # WARNING - CHECK THIS but currently not used as war_param = "include"
   if(war_param == "exclude"){
     
     if (year[[1]]<=1918 | year[[1]]<=1945){
@@ -346,7 +349,8 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   ann_text <- data.frame(Year = c(1841+10,1961+15), Value = rep(yMax,2), lab = c("Transition","Experiment"), group = rep("Effort (nominal, DkW)", 2), Data = rep("Reconstructed values", 2), Considered = rep("Yes", 2))
   
   plot<-ggplot(data = final_df_plot, aes(x = Year, y = Value, group = Data, color = Data, shape=Considered)) +
-    ggtitle(paste("LME", toKeep, sep = " "))+
+    # ggtitle(paste("LME", toKeep, sep = " "))+
+    ggtitle(toKeep)+
     facet_wrap(~group, scales = "free", nrow = 2)+
     annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
     # annotate("rect",xmin=1861, xmax=1960, ymin=0, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # transition b2e2e2
@@ -358,6 +362,11 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     scale_color_manual(values = c("blue", "black"), drop = FALSE)+
     scale_fill_chris()+
     my_theme
+  
+  # # check low catches and whether they are 0 effort (FAO_21 as example): 
+  # # YES problem in some cases as low catches results in reconstructed 0 effort. is this OK in terms of model spin-up? 
+  # str(final_df_plot)
+  # filter(final_df_plot, Year %in% c(1940, 1950, 1951, 1900))
   
   if(var == "catch_tot"){ # different reference year are only relevent when effort reconstruction is based on catches  
     if(reference == "1950"){

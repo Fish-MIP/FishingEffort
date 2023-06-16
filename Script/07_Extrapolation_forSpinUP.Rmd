@@ -140,7 +140,7 @@ my_theme<-theme_bw()+
 
 toKeep<-sort(unique(effort$LME))
 
-source("Helper_functions_fishingEffort.R")
+source("Script/Helper_functions_fishingEffort.R")
 
 ### NOTE - these analyses were done at the LME level - i.e. when LME0 was a unique area not divided into FAO regions.  
 
@@ -307,55 +307,69 @@ toKeep<-sort(unique(effort$LME))
 # create an LME_1 and FAO_1 where LME == 0 new code under LME column. 
 # might need to tune kappa values for FAO regions in LME0 and will need to check plot at FAO region level as they will be sum of LME and FAO.  
 
+# for effort 
 effort<-effort %>% 
-  mutate(LME_FAO = ifelse(LME == 0, paste0("FAO_", fao_area), paste0("LME_", LME)))
+  mutate(LME_FAO = ifelse(LME == 0, paste0("FAO_for_LME0_", fao_area), paste0("LME_", LME)))
+
+# for catch 
+catch<-catch %>% 
+  mutate(LME_FAO = ifelse(LME == 0, paste0("FAO_for_LME0_", fao_area), paste0("LME_", LME)))
 
 # new toKeep
-toKeep<-sort(unique(effort2$LME_FAO))
+toKeep<-sort(unique(effort$LME_FAO))
 
 df_kappa = 6 
 # with kappa = 3 bumps in effort disappear and we force the perfect logarithmic shape on the catch/effort data, but GAM in most cases does not fit the data particularly well (as does not follow bumps ...)
 
 if(df_kappa ==6){ # better capture trends 
   
-  
-  ## WARNING need to readjust according to LME name instead of seq number 
-  
   # but avoid an increase in effort from 1950 to 1841: 
   kappa_values<-data.frame(lme = toKeep, kappa = 6) 
-  kappa_values[c(5,13,19,56,57,61)+1, 2]<-5 # LMEs 5, 13, 19, 56, 57, 61
-  kappa_values[c(8)+1, 2]<-4 # LMEs 8
-
-  # correct trends - Jerome comments
-  # LME 40 not capturing slow increase in effort and resulting in high effort between 1841 and 1950, try playing with the smoothing parameter.
-  kappa_values[c(40)+1, 2]<-3 # 4 and 5 won't make a change # 3 works
-
-  # LME 29 and 31 same as above
-  kappa_values[c(29,31)+1, 2]<-4 # 5 or 7 means increases # 4 works
   
-  # LME 66 - warning when fitting the GAM  
-  kappa_values[c(66)+1, 2]<-4 # kappa = 5 solves the problem but kappa = 4 gives a better plot
+  # kappa_values[c(5,13,19,56,57,61)+1, 2]<-5 # LMEs 5, 13, 19, 56, 57, 61
+  # kappa_values[c(8)+1, 2]<-4 # LMEs 8
+  # 
+  # # correct trends - Jerome comments
+  # # LME 40 not capturing slow increase in effort and resulting in high effort between 1841 and 1950, try playing with the smoothing parameter.
+  # kappa_values[c(40)+1, 2]<-3 # 4 and 5 won't make a change # 3 works
+  # 
+  # # LME 29 and 31 same as above
+  # kappa_values[c(29,31)+1, 2]<-4 # 5 or 7 means increases # 4 works
+  #   
+  # # LME 66 - warning when fitting the GAM  
+  # kappa_values[c(66)+1, 2]<-4 # kappa = 5 solves the problem but kappa = 4 gives a better plot
+  # 
+  # # LME that do not go to 0 by 1841 or have large bumps between 1841 and 1950 - try lowering kappa 
+  # # 3,6,7,10 - no difference when lowering kappa - this is just due to the data itself 
+  # # 9 - worst 
+  # # 22 - 3 decreasing trend and getting closer to 0 but bad fit, 4 & 5 wrong (increasing)
+  # # 24 - small difference : 3 increasing, *4* nice and close to 6 but bigger bump around 1930 and lower effort in 1841, 5 wrong
+  # # 26 - slightly better 6
+  # # 42 - 3 better but fit is worst, 4 bad, *5* better and fit is OK 
+  # kappa_values[c(42)+1, 2]<-5
+  # 
+  # # 43 - bump: 3 bad, *4* ok not sure which one is better, 5 bad 
+  # # kappa_values[c(43)+1, 2]<-4
+  # # 44 - bump: 4 fixes the bump but not sure this is OK as effort drops really quickly, 3 and 5 bad 
+  # # 49 - bump: 3 bump fixed but no fit, 4 better but not great fit, 5 same as 6 but worst fit 
+  # # 50, 51 - bump: not sure it should be fixed 
+  # # 54 - high/ish values at start of time series: could decrease quicker with *5* 
+  # kappa_values[c(54)+1, 2]<-5
+  # 
+  # # 55 - bump in experiment - not important has here raw data is used
+  # # 57 - already lowered to 5 and OK (3 bad fit) *4* is the same as 5 but because we fit to few points should we prefer 4? 
+  # # kappa_values[c(57)+1, 2]<-4
+  # # 59 - high/ish values at start of time series: no changes with kappas  
+  # # 60 - all values ok but 6 has better fit and goes to 0 
   
-  # LME that do not go to 0 by 1841 or have large bumps between 1841 and 1950 - try lowering kappa 
-  # 3,6,7,10 - no difference when lowering kappa - this is just due to the data itself 
-  # 9 - worst 
-  # 22 - 3 decreasing trend and getting closer to 0 but bad fit, 4 & 5 wrong (increasing)
-  # 24 - small difference : 3 increasing, *4* nice and close to 6 but bigger bump around 1930 and lower effort in 1841, 5 wrong
-  # 26 - slightly better 6
-  # 42 - 3 better but fit is worst, 4 bad, *5* better and fit is OK 
-  kappa_values[c(42)+1, 2]<-5
-  # 43 - bump: 3 bad, *4* ok not sure which one is better, 5 bad 
-  # kappa_values[c(43)+1, 2]<-4
-  # 44 - bump: 4 fixes the bump but not sure this is OK as effort drops really quickly, 3 and 5 bad 
-  # 49 - bump: 3 bump fixed but no fit, 4 better but not great fit, 5 same as 6 but worst fit 
-  # 50, 51 - bump: not sure it should be fixed 
-  # 54 - high/ish values at start of time series: could decrease quicker with *5* 
-  kappa_values[c(54)+1, 2]<-5
-  # 55 - bump in experiment - not important has here raw data is used
-  # 57 - already lowered to 5 and OK (3 bad fit) *4* is the same as 5 but because we fit to few points should we prefer 4? 
-  # kappa_values[c(57)+1, 2]<-4
-  # 59 - high/ish values at start of time series: no changes with kappas  
-  # 60 - all values ok but 6 has better fit and goes to 0 
+  
+  ## adjust above code and values according to LME name instead of seq number and given new classification of LME 0 into FAO regions. 
+  kappa_values<-kappa_values %>% 
+    mutate(kappa = case_when(lme %in% c("LME_5","LME_13","LME_19","LME_56",
+                                        "LME_57","LME_61","LME_42","LME_54") ~ 5,
+                             lme %in% c("LME_8","LME_29","LME_31","LME_66") ~ 4,
+                             lme %in% c("LME_40") ~ 3,
+                             TRUE ~ kappa)) # .default = kappa gives error
   
 }else if (df_kappa == 3){ # assumes a "perfect" logistic 
   
@@ -373,7 +387,7 @@ data_for_plot_for_FAOreport<-list()
 tic()
 for(i in 1:length(toKeep)){
   
-  # i = 57+1
+  # i = 1
   print(toKeep[[i]])
 
   # yes war data when fitting GAM do not re-add original data as otherwise you overwrite predictions, reference mean over a decade
