@@ -321,6 +321,20 @@ toKeep<-sort(unique(effort$LME_FAO))
 df_kappa = 6 
 # with kappa = 3 bumps in effort disappear and we force the perfect logarithmic shape on the catch/effort data, but GAM in most cases does not fit the data particularly well (as does not follow bumps ...)
 
+###### DECISIOSN for FAO regions replacing LME 0 - see plot reconstructed effort printed at end of chunk. Alos check LMEs are the same as before. 
+# FAO 81,87,88 # should I adjust? also cutting the time series to highest values can be a bit strange for some LMEs ... but I guess this has already been discussed... 
+
+
+
+
+
+
+
+
+
+
+
+
 if(df_kappa ==6){ # better capture trends 
   
   # but avoid an increase in effort from 1950 to 1841: 
@@ -407,7 +421,7 @@ for(i in 1:length(toKeep)){
   names(data_for_plot_for_FAOreport)[i]<-toKeep[i]
   
 }
-toc() # 103.332 sec elapsed
+toc() # 103.332 sec elapsed # new LME 0 classification 503.945
 # Warning messages: 3 warnings all on LME 66
 # 1: Step size truncated due to divergence 
 # inside gam.fit in the mgcv
@@ -415,21 +429,27 @@ toc() # 103.332 sec elapsed
 # data. need to inspect the details of the model fit. lowered kappa above for this LME 
 
 # show corrected trends 
+names(plot_reconstructed_effort_LME_war_ref)
 # plot_reconstructed_effort_LME_war_ref[[67]]
+plot_reconstructed_effort_LME_war_ref$`LME_66`
 
 # show Antarctica - need to be 0 before 1950 - it is zero or close to zero in both kappa cases  
 # plot_reconstructed_effort_LME_war_ref[[62]]
+plot_reconstructed_effort_LME_war_ref$`LME_61`
 
 # show north sea
 # plot_reconstructed_effort_LME_war_ref[[23]]
+plot_reconstructed_effort_LME_war_ref$`LME_22`
 
 # adjust LME 64 ----
 # in LME 64 (central Arctic) effort increases back in time - use trends in LME 65 (Aleutian Island)
 # not good when kappa = 3
 # plot_reconstructed_effort_LME_war_ref[[65]] # the one need fixing # Should this be zero before 1950? very close to 0 very soon if we use the approach below. 
 # plot_reconstructed_effort_LME_war_ref[[66]]
-trial<-reconstructed_effort_LME_war_ref[[65]] 
-trial1<-reconstructed_effort_LME_war_ref[[66]]
+# trial<-reconstructed_effort_LME_war_ref[[65]] 
+# trial1<-reconstructed_effort_LME_war_ref[[66]]
+trial<-reconstructed_effort_LME_war_ref$`LME_64` 
+trial1<-reconstructed_effort_LME_war_ref$`LME_65`
 
 # sort(unique(trial$Year))
 # sort(unique(trial1$Year))
@@ -545,8 +565,11 @@ plot_LME64<-ggplot(data = trial3_toPlot, aes(x = Year, y = Value, group = Data, 
   geom_vline(xintercept=1955, linetype="dashed", color = "red", size=0.5)
 
 # prediction missing as coming from a different LME ... 
-reconstructed_effort_LME_war_ref[[65]]<-trial3
-plot_reconstructed_effort_LME_war_ref[[65]]<-plot_LME64
+# reconstructed_effort_LME_war_ref[[65]]<-trial3
+# plot_reconstructed_effort_LME_war_ref[[65]]<-plot_LME64
+
+reconstructed_effort_LME_war_ref$`LME_64`<-trial3
+plot_reconstructed_effort_LME_war_ref$`LME_64`<-plot_LME64
 
 # adjust LME 61 ----
 # Antarctica - effort = 0 before 1950
@@ -557,9 +580,9 @@ plot_reconstructed_effort_LME_war_ref[[65]]<-plot_LME64
 plot_reconstructed_effort_LME_war_ref<-plot_reconstructed_effort_LME_war_ref[lapply(plot_reconstructed_effort_LME_war_ref,length)>0]
 
 if(df_kappa == 6){
-  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa6_1841_fixedValues_kappaLME31_EEZ.pdf" # this cversion uses EEZ instead of administrative country
+  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa6_1841_fixedValues_kappaLME31_EEZ_addFAO.pdf" # this version uses EEZ instead of administrative country # this version uses FAO regions instead of LME 0
 }else if (df_kappa == 3){
-  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa3_1841_fixedValues_kappaLME31_EEZ.pdf"
+  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa3_1841_fixedValues_kappaLME31_EEZ_addFAO.pdf"
 }
 
 # if total catch included discards - no need see comment above:  
@@ -686,6 +709,22 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
   # NOTE from recent_effort you consider CONTRIBUTIONS by groups 
   # first you calculate the average effort by group 1950-1960 (reference effort)
   # then you calculate the effort contribution of each group. at the LME level this sums to 1 
+  
+  
+  ####### WARNING this is where it get tricky with the new organisation of LME 0 if you are considering EEZ and FAO area only. What happens with area that is outside EEZ and LME0+FAO classification and withing an LME? should you check that the sum of effort when using different grouping is always the same??? of course need to group_by fao_area too below!
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   
   recent_effortB<-recent_effortB %>% 
     group_by(eez_country_name,SAUP,Gear,FGroup,Sector,LME) %>% 
@@ -816,6 +855,19 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
 decision<-reconstructed_effort_LME_war_ref
 
 # First loop ----
+
+#### WRNING, again, this is where it can get tricky - should you run this at LME level as before or using LME_FAO column? 
+
+
+
+
+
+
+
+
+
+
+
 
 toKeep<-sort(unique(effort$LME))
 reconstructed_effort_ref<-list()
