@@ -77,6 +77,7 @@ effort_spinup<-effort_tot %>%
 write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv") 
 
 
+#### NOTE RUN FOR NEW VERSIONS OF _addFAO ---------- 
 ## NOTE: the below is not necessary anymore (besides checking) as the final effort data will include spin-up
 # all data on DKRZ are replaced with spin-up version but better to keep this version as well.  
 

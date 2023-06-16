@@ -9,6 +9,8 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Aim 
+
 The aim of this file is to aggregate Reg's historical catch data as per Yannick's effort data 
 
 ORIGIN: data sent from Reg on 20/05/22 - RE: question about mapping catch and effort
@@ -19,7 +21,7 @@ FORMAT:
 1. from Reg: Data by cell (with lat and long) by year by country fishing (represented by a code CNumber) by FGroup (represented by a code). The numbers are in tonnes for reported, IUU and Discards. Typically you would ignore discards as they can be any species (not the one in the record usually). So I would combine reported and IUU estimated (see email conversation on discards).
 2. Catch is in tonnes (by grid cell), can /area grid cell to get catch rates. Reg NOTES: "PPS if you decide to map using the cell data then you should NOT use the tonnes but rather the catch rate (tonnes per sq km of ocean) as the cells vary in size and tonnes would be misleading ..."
 
-# Add LME and EEZ to historical cacth data from Reg 
+## Add LME and EEZ to historical cacth data from Reg 
 
 ```{r new data}
 
@@ -107,6 +109,13 @@ EEZ_raster <- raster::rasterFromXYZ(EEZ_xyz)
 #   geom_tile(aes(x=x, y=y, fill=z)) + 
 #   scale_fill_gradientn(colours = RColorBrewer::brewer.pal(n = 9, name = "Spectral"))
 
+EEZ_adj<-EEZ_adj %>% select(-eez_country_code) # CN no need for this enymore - avoid confuction
+nrow(as.data.table(EEZ_adj))
+EEZ_adj<-unique(EEZ_adj)
+nrow(as.data.table(EEZ_adj))
+
+
+
 # LME data
 (LMEs <- fread(file.path(yannick_dir, "LMESeq.csv")))
 LMEs <- lazy_dt(LMEs)
@@ -126,13 +135,13 @@ nrow(FAO_regions) #229369
 #Some LME data are around that have no FAO or EEZ data
 (all_spatial_layers <- 
   full_join(x = full_join(x = LMEs %>% select(-Seq), y = FAO_regions, by = c("Lon", "Lat")), 
-            y = EEZ_adj %>% select(Lon, Lat, eez_country_code, eez_country_name), by = c("Lon", "Lat")) %>% as_tibble()
+            y = EEZ_adj %>% select(Lon, Lat, eez_country_name), by = c("Lon", "Lat")) %>% as_tibble()
 )
 
 missing_fao_eez <- 
   all_spatial_layers %>% 
   filter(is.na(fao_area)) %>% #29831 where FAO areas are NA but LME are not
-  filter(is.na(eez_country_code)) #29830 where EEZ are NA but LME are not - this does not change depending on order. So there is one cell where the is LME data and EEZ data but not FAO area data
+  filter(is.na(eez_country_name)) #29830 where EEZ are NA but LME are not - this does not change depending on order. So there is one cell where the is LME data and EEZ data but not FAO area data
 
 ## end paste ----
 
@@ -147,16 +156,18 @@ missing_fao_eez <-
 # unique(sort(as.data.table(EEZ_adj)$Lat))
 # unique(sort(as.data.table(EEZ_adj)$Lon))
 
+head(catch)
+
 tic()
 catch2 <- catch %>%
   select(-Seq) %>% 
   left_join(LMEs, by=c("Lat", "Lon")) %>%
   left_join(EEZ_adj, by=c("Lat", "Lon")) %>%
-  # left_join(FAO_regions, by=c("Lat", "Lon")) %>%
+  left_join(FAO_regions, by=c("Lat", "Lon")) %>%
   
   # WARNING: Should we weight by grid cell area here??? Same for effort (in script 02)! See comment top of file. 
-
-  group_by(Year,CNumber,FGroup, LME, eez_country_code,eez_country_name,Sector) %>%
+  
+  group_by(Year,CNumber,FGroup,fao_area, LME, eez_country_name,Sector) %>%
   summarise(Reported = sum(Reported, na.rm = TRUE),
             IUU = sum(IUU, na.rm = TRUE),
             Discards = sum(Discards, na.rm = TRUE)) %>% 
@@ -173,12 +184,13 @@ toc()
 
 ```
 
-# format catch as effort file  
+## format catch as effort file  
 
 ```{r catch}
 
 # ORIGIN: created through script 02 from original Yannicks country files in Gem48 and re-arranged and trimmed in script 05.    
-effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ.csv") # use EEZ version where EEZ is not the administrative country
+# effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ.csv") # use EEZ version where EEZ is not the administrative country
+effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv") # use EEZ version where EEZ is not the administrative country and where FAO regions are added 
 head(effort)
 effort<-effort[,-1]
 
@@ -195,7 +207,7 @@ effort<-effort[,-1]
 # fishing country 
 saup<-read_csv("/rd/gem/private/users/yannickr/SAUPcode_to_Country.csv")
 
-# # is CNumber == SAUP? it looks like it
+# # is CNumber == SAUP? it looks like it. yes also from Reg's email where CNumber = fishing country 
 # sort(unique(catch$CNumber)) 
 # sort(unique(saup$SAUP_Country_Nbr))
 # unique(filter(catch, CNumber == 124)$eez_country_name)
@@ -271,7 +283,8 @@ plot<-ggplot(trial2, aes(x = Year, y = catch, group = key, color = key)) + # col
   theme_bw()+
   facet_grid(type~Sector)
 
-pdf("Output/catch_compare_EEZ.pdf", width = 10, height=7)
+# version where we consider EEZ name and not administrative country and where we add FAO regions to the merging (previously there in code but committed given work on effort)
+pdf("Output/catch_compare_EEZ_addFAO.pdf", width = 10, height=7)
 plot
 dev.off()
 
@@ -285,8 +298,8 @@ final_catch <- catch2
 
 unique(as.data.frame(final_catch)$Year)
 # fwrite(x = as.data.frame(final_catch), file.path(yannick_dir, "catch_histsoc_1869_2017.csv"))
-fwrite(x = as.data.frame(final_catch), file.path(yannick_dir, "catch_histsoc_1869_2017_EEZ.csv"))
-
+# fwrite(x = as.data.frame(final_catch), file.path(yannick_dir, "catch_histsoc_1869_2017_EEZ.csv"))
+fwrite(x = as.data.frame(final_catch), file.path(yannick_dir, "catch_histsoc_1869_2017_EEZ_addFAO.csv"))
 
 ```
 
