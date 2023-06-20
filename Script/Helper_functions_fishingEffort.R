@@ -67,11 +67,14 @@ join_effort_data <- function(this_file_name){
   
 }
 
+# extrapolate effort 1841 to 1950 
+
 effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   
   # # # trial
   # # toKeep=66
-  # toKeep = "FAO_21"
+  # toKeep = "FAO_for_LME0_88" # fix problem with effort not been available before 2004
+  # toKeep = "LME_24" # fix problem with war years being removed when they should have not for bug in code ...
   # kappa=6
   # war_param = "include"
   # war_decision = "no-add"
@@ -124,7 +127,34 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     warToRemove<-war$Year
   }
   
-  if(year[[1]]<=1918 | year[[1]]<=1945 & war_param == "exclude"){
+  # # WARNING - this argument to if() was wrong before adding the () 
+  # # because if year[[1]] = 1910 but war param = "include", 
+  # # the argument returns TRUE hence war data is removed! 
+  # # need to check whether this had any influence on the results. 
+  # # by checking at plots (any data <1918 ?): LME 0, LME 12, LME 19, 2, 20, 21,22,23,24, etc... LOTS 
+  # 
+  # # this means I have excluded catches during war years only if catch data extended to before 1918!
+  # and I did not re-added them back before calculating the rate of change in effort (code below) as  
+  # war_param == "include" & war_decision == "no-add"
+  # war_param = "include"
+  # year = 1910
+  # year = 1950
+  # 
+  # year<=1918 | year<=1945 & war_param == "exclude"
+  # (year<=1918 | year<=1945) & war_param == "exclude"
+  
+  # re-run code corrected and check LMEs that have been influenced... 
+  # yes some have: see eg. LME 9 as one of worst case 
+  # FILE with: years, LME, % difference between approaches. (possibly not correct)
+  # also other approach of excluding war years in all LMEs 
+  
+  
+  
+  
+  
+  
+  #### why not just war_param == "exclude" ??? 
+  if((year[[1]]<=1918 | year[[1]]<=1945) & war_param == "exclude"){
     df<-filter(df, !Year %in% warToRemove)
   }
   
@@ -132,11 +162,11 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   gam_model<-gam(eval(as.name(var)) ~ s(Year, k=kappa), data=df, family=gaussian(link="log"))
   df$gam<-round(predict(gam_model,newdata = df,type='response'))
   
-  # check the gam
-  ylim = c(min(df$gam), max(df$gam))
-  plot(df$Year,df[[var]],  ylim=ylim)
-  par(new=T)
-  plot(df$Year,df$gam,col="red",type='l', ylim=ylim)
+  # # check the gam
+  # ylim = c(min(df$gam), max(df$gam))
+  # plot(df$Year,df[[var]],  ylim=ylim)
+  # par(new=T)
+  # plot(df$Year,df$gam,col="red",type='l', ylim=ylim)
   
   # predict backwards
   newd <- data.frame(Year = seq(1861, maxVar$Year))
@@ -201,7 +231,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
       full_join(rate_of_change, by = "Year") %>% 
       mutate(NomActive_catch_based = case_when(Year >= 1950 ~ NomActive,
                                                Year < 1950 ~ ref + (rate/100)*ref))
-    
+  
     # # check
     # ggplot(data = effort_reconstruct, aes(x = Year, y = NomActive_catch_based)) +
     #   geom_point()
@@ -220,8 +250,13 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   }else{ # END var = cacth_tot; beginning of var = NomActive 
     
     # build effort based on gam on effort. 
+    # df<-df %>% 
+    #   mutate(NomActive = ifelse(Year < 1950, pred, NomActive)) 
+    
+    # WARNING - this is to fix "FAO_for_LME0_88" where effort data is missing before 2004 
+    # hence you have a gap 1950-2003 if you use the code above 
     df<-df %>% 
-      mutate(NomActive = ifelse(Year < 1950, pred, NomActive)) 
+      mutate(NomActive = ifelse(is.na(NomActive), pred, NomActive)) 
     
   } # end difference between var 
   
@@ -384,3 +419,241 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   # } # END if data exist 
   
 } 
+
+# allocate reconstructed effort across groups function
+
+effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
+  
+  # # trial
+  # # error i = 17 (FAO_for_LME0_88)
+  # i = 17 # no effort reconstruction for this region! probably because only very recent data is available...
+  # historical_effort = decision[[i]] # effort from 1841 to 2017 at LME level from analysis above - missing groups (eez, gear, fgroup, saup, sector, etc.)
+  # recent_effort = recent_effort # effort from 1950 to 2017 with all groups
+  # toKeep = toKeep[[i]]
+  # reference = "1950-1960"
+  
+  # calculate effort distribution across group using 1950-1960, if you use one year only you might miss important groups not represented in 1950 
+  if(reference == "1950"){
+    recent_effortB<-recent_effort %>% 
+      filter(Year == 1950)
+  }else{
+    recent_effortB<-recent_effort %>% 
+      filter(Year >= 1950, Year <=1960)
+  }
+  
+  # WARNING - problem with FAO_for_LME0_88 as there is no data until 1950 in original Yannick's dataset. 
+  if(toKeep == "FAO_for_LME0_88"){
+    recent_effortB<-recent_effort %>% 
+      filter(Year >= 1974, Year <=1984)
+  }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  # sort(unique(historical_effort$Year))
+  # sort(unique(recent_effort$Year))
+  
+  # this is done for each LME (LME in grouping below is not necessary). 
+  # recent_effort is effort from 1950-2017 and recent_effortB is effort from 1950-1960 (reference years) including all groups
+  # NOTE from recent_effort you consider CONTRIBUTIONS by groups 
+  # first you calculate the average effort by group 1950-1960 (reference effort)
+  # then you calculate the effort contribution of each group. at the LME level this sums to 1 
+  
+  
+  ####### WARNING this is where it get tricky with the new organisation of LME 0 if you are considering EEZ and FAO area only. 
+  # What happens with area that is outside EEZ and LME0+FAO classification and withing an LME? 
+  # should you check that the sum of effort when using different grouping is always the same??? 
+  # of course need to group_by fao_area too below!
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  recent_effortB<-recent_effortB %>% 
+    group_by(eez_country_name,SAUP,Gear,FGroup,Sector,LME,fao_area) %>% # added fao_area for LME0 grouping 
+    summarise(NomActive = mean(NomActive, na.rm = TRUE)) %>% 
+    ungroup() %>% 
+    mutate(contribution = NomActive/sum(NomActive, na.rm = TRUE))
+  
+  # check
+  sum(recent_effortB$contribution, na.rm = TRUE)
+  
+  # now you work on the historical data 1841-1950.
+  # FIRST - create all combinations of groups in historical years - e.g. 1841 all eez, saup, grear, fgroup, sector present in the reference years (1950-1960) with contribution being constant across year (proportions don't change, effort does), 1842 same story ... 
+  Year= seq(1841,1949)
+  toExpend<-recent_effortB %>% 
+    select(-NomActive) %>% 
+    unique()
+  
+  toExpend<-rbindlist(lapply(1841:1949, function(x,d) data.frame(d, Year=x), d=toExpend))
+  toExpend<-as_tibble(toExpend)
+  
+  ### WARNING adjust FAO_for_LME0_88
+  if(toKeep == "FAO_for_LME0_88"){
+    year = seq(1841, 1973) # better define last year given Year vector 
+      toExpend<-recent_effortB %>% 
+        select(-NomActive) %>% 
+        unique()
+    
+    toExpend<-rbindlist(lapply(1841:1973, function(x,d) data.frame(d, Year=x), d=toExpend))
+    toExpend<-as_tibble(toExpend) 
+  }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  # SECOND - get effort value by year for 1841-1950
+  # NOTE from historical_effort you consider EFFORT VALUES by year withing LME 
+  # not much done here, just data wrangling to get year, effort dataset
+  historical_effort<-historical_effort %>% 
+    filter(Type == "NomActive") %>% # Here can keep catches too 
+    select(-group, -Considered) %>% 
+    spread(Type, Value) %>% 
+    filter(!is.na(NomActive)) %>% # catch data goes to 2017 but effort to 2010 - source of NAs 
+    rename(NomActive_pred = NomActive) 
+  
+  # THIRD - merge historical effort values with groups from recent_effortB (through toExpand)
+  # and calculate NomActive for each group based on: historical effort values*effort contribution by each group in 1950-1960 (from recent_effortB) 
+  final_df<-filter(historical_effort, Year <1950) %>% # this are the only year that we need to reconstruct and merge with recent_effort
+    full_join(toExpend) %>% 
+    mutate(NomActive = NomActive_pred*contribution) %>% 
+    select(-NomActive_pred, -contribution)
+  
+  ### WARNING adjust FAO_for_LME0_88
+  if(toKeep == "FAO_for_LME0_88"){
+    final_df<-filter(historical_effort, Year <1974) %>% # this are the only year that we need to reconstruct and merge with recent_effort
+      full_join(toExpend) %>% 
+      mutate(NomActive = NomActive_pred*contribution) %>% 
+      select(-NomActive_pred, -contribution)
+  }
+    
+    
+    
+    
+    
+    
+    
+    
+  
+  
+  
+  # # check - ok - the sum of effort at the LME level matches .... 
+  # final_df %>% filter(Year ==1841) %>% mutate(a = sum(NomActive))
+  # decision[[1]] %>% filter(Year ==1841) # compare a with original data
+  
+  # FORTH - merge merge historical effort where contributions to the groups has been calculated above (1841-1950) with recent_effort (1950-2017)
+  # sort(unique(final_df$Year))
+  # sort(unique(recent_effort$Year))
+  # 
+  # tic()
+  # final_df1<- lazy_dt(final_df) %>%
+  #   full_join(lazy_dt(recent_effort)) %>%
+  #   as.data.frame()
+  # toc()
+  
+  # tic()
+  final_df<- final_df %>% 
+    full_join(recent_effort) %>% 
+    as.data.frame()
+  # toc()
+  
+  # # check they give the same ouputs -  
+  # trial<-final_df1 %>% 
+  #   group_by(Year) %>% 
+  #   summarise(effort = sum(NomActive, na.rm = TRUE)) %>%
+  #   ungroup()
+  # 
+  # pdf("Output/trial.pdf", height = 8, width = 6)
+  # ggplot(trial, aes(x = Year, y = effort))+
+  #   geom_point()
+  # dev.off()
+  
+  # final df for plotting 
+  data_plot<-final_df %>%
+    group_by(Year, Gear) %>% 
+    summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
+    ungroup()
+  
+  # plot<-ggplot(data_plot, aes(y = NomActive, x = Year, group = Gear, color = Gear))+
+  #   geom_line()+
+  #   ggtitle(paste("LME", toKeep, sep = " ")) +# WARNING - check this is correct
+  #   my_theme
+  
+  # create data for annotation 
+  yMax = max(data_plot$NomActive, na.rm = TRUE)
+  
+  # ann_text <- data.frame(Year = c(1841+10,1861+15,1961+15), NomActive = rep(yMax,3), lab = c("Spin-up","Transition","Experiment"), Gear = rep(unique(data_plot$Gear)[1], 3))
+  
+  ann_text <- data.frame(Year = c(1841+10,1961+15), NomActive = rep(yMax,2), lab = c("Transition","Experiment"), Gear = rep(unique(data_plot$Gear)[1], 2))
+  
+  plot<-ggplot(data = data_plot, aes(x = Year, y = NomActive, group = Gear, color = Gear)) +
+    ggtitle(paste("LME", toKeep, sep = " "))+ # WARNING - check this is correct
+    annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
+    # annotate("rect",xmin=1861, xmax=1960, ymin=0, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # transition b2e2e2
+    annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
+    # annotate("rect",xmin=1841, xmax=1950, ymin=0, ymax=Inf, fill = "#edf8fb", alpha = 0.4)+ # spin-up
+    # annotate("rect",xmin=1950, xmax=1961, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # transition
+    # annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # projection 
+    # annotate("rect",xmin=2010, xmax=2017, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # validation
+    geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
+    geom_line(size = 0.5)+
+    geom_point(size = 0.5)+
+    my_theme
+  
+  if(reference == "1950"){
+    plot<-plot+
+      geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)
+  }else{
+    plot<-plot+
+      geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)+
+      geom_vline(xintercept=1960, linetype="dashed", color = "red", size=0.5)
+  }
+  
+  
+  ### WARNING adjust FAO_for_LME0_88
+  if(toKeep == "FAO_for_LME0_88"){
+    plot<-plot+
+      geom_vline(xintercept=1974, linetype="dashed", color = "red", size=0.5)+
+      geom_vline(xintercept=1974, linetype="dashed", color = "red", size=0.5)
+  }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  # # check with gear and FGroup - OK
+  # pdf("Output/trial1.pdf", height = 8, width = 6)
+  # plot
+  # dev.off()
+  
+  return(list(final_df = final_df, plot = plot))
+  
+}
