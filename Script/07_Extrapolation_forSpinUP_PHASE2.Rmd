@@ -169,9 +169,9 @@ toc() # 1019.363/60 = 16 min
 # check empty LME and remove from the list - it should be none
 plot_reconstructed_effort_ref<-plot_reconstructed_effort_ref[lapply(plot_reconstructed_effort_ref,length)>0]
 
-pdf("Output/reconstructed_effort_for_spinup_JeromeComments_1841_fixedValues_kappaLME31_EEZ_addFAO.pdf", height = 8, width = 6)
-marrangeGrob(grobs = plot_reconstructed_effort_ref, nrow=2, ncol=1)
-dev.off()
+# pdf("Output/reconstructed_effort_for_spinup_JeromeComments_1841_fixedValues_kappaLME31_EEZ_addFAO.pdf", height = 8, width = 6)
+# marrangeGrob(grobs = plot_reconstructed_effort_ref, nrow=2, ncol=1)
+# dev.off()
 
 # if total cacthes included discards - no need see comment bove  
 # pdf("Output/reconstructed_effort_for_spinup_JeromeComments_discards.pdf", height = 8, width = 6)
@@ -185,7 +185,7 @@ reconstructed_effort_ref_all<-do.call(rbind.data.frame, reconstructed_effort_ref
 ### WARNING - here define EEZ 0 ??? this is to facilitate data exploration. 
 ### ARRIVATA QUI 
 
-head(reconstructed_effort_ref_all)
+# head(reconstructed_effort_ref_all)
 
 
 
@@ -198,8 +198,8 @@ head(reconstructed_effort_ref_all)
 
 
 
-### SAVE DATA HERE for FAO report plots. 
-save(reconstructed_effort_ref_all, file = "~/FishingEffort/Data/temp_effort_EEZ.RData")
+### SAVE DATA HERE for FAO report plots. NOTE here saved in /rd/gem as it should be for all temp_data!!!!!!! move them all here when re-running the code. 
+save(reconstructed_effort_ref_all, file = "/rd/gem/private/users/camillan/FishingEffort_Data/temp_effort_EEZ.RData")
 
 ```
 
