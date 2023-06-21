@@ -66,7 +66,7 @@ effort<-effort %>%
   mutate(LME_FAO = ifelse(LME == 0, paste0("FAO_for_LME0_", fao_area), paste0("LME_", LME)))
 
 # load reconstructure effort data (temp_data) printed in 07_PHASE1 
-load("~/FishingEffort/Data/temp_effort.RData") 
+load("~/FishingEffort/Data/temp_effort.RData") # the difference with effort above is the 1842-1950 reconstruction
 
 # load helper functions 
 source("Script/Helper_functions_fishingEffort.R")
@@ -90,7 +90,7 @@ decision<-reconstructed_effort_LME_war_ref
 
 
 # toKeep<-sort(unique(effort$LME))
-toKeep<-sort(unique(effort$LME_FAO))
+toKeep<-sort(unique(effort$LME_FAO), na.last = TRUE)
 
 names(decision)
 
@@ -100,8 +100,9 @@ plot_reconstructed_effort_ref<-list()
 tic()
 for(i in 1:length(decision)){
 
-  # i = 17 
-  # WARNING problems with FAO_for_LME0_88
+  # i = 1 
+  # WARNING problems with FAO_for_LME0_88 # i = 17 
+  # WARNING problems with FAO_for_LME0_21 # i =1 
   
   
   
@@ -182,22 +183,6 @@ plot_reconstructed_effort_ref<-plot_reconstructed_effort_ref[lapply(plot_reconst
 
 reconstructed_effort_ref_all<-do.call(rbind.data.frame, reconstructed_effort_ref)
 
-### WARNING - here define EEZ 0 ??? this is to facilitate data exploration. 
-### ARRIVATA QUI 
-
-# head(reconstructed_effort_ref_all)
-
-
-
-
-
-
-
-
-
-
-
-
 ### SAVE DATA HERE for FAO report plots. NOTE here saved in /rd/gem as it should be for all temp_data!!!!!!! move them all here when re-running the code. 
 save(reconstructed_effort_ref_all, file = "/rd/gem/private/users/camillan/FishingEffort_Data/temp_effort_EEZ.RData")
 
@@ -207,8 +192,161 @@ save(reconstructed_effort_ref_all, file = "/rd/gem/private/users/camillan/Fishin
 
 ```{r}
 
+rm(list=ls())
+
+library(tidyverse)
+library(dtplyr)
+library(tictoc)
+library(data.table)
+library(mgcv)
+library(gridExtra)
+
+select<-dplyr::select
+
+# effort 1941-2017
+load("~/FishingEffort/Data/temp_effort.RData") 
+effort1<-reconstructed_effort_LME_war_ref
+# effort allocated to groups
+load("/rd/gem/private/users/camillan/FishingEffort_Data/temp_effort_EEZ.RData")
+# reconstructed_effort_ref_all
+
 # IMPORTANT - check difference between previous run where you considered administrative country and second run where you considered actual EEZ. 
 unique(reconstructed_effort_ref_all$eez_country_name)
+
+# IMPORTANT 2 - checks after you added FAO_LME column
+head(reconstructed_effort_ref_all)
+
+# NA for fAO_LME column 
+trial<-reconstructed_effort_ref_all %>% 
+  filter(Year == 1951)
+head(trial) # need to add this column when extrapolating effort or when allocating effort to groups taht is <1950. 
+
+# check NAs for all spatial groupings 
+sort(unique(check), na.last = FALSE) # NOTE! sort() removes NAs unless specified. 
+sort(unique(reconstructed_effort_ref_all$eez_country_name), na.last = FALSE) # There are no EEZ that are NAs! but there are EEZ that are high seas which is OK
+sort(unique(reconstructed_effort_ref_all$LME), na.last = FALSE) # No NAs but LME 0 which is OK 
+sort(unique(reconstructed_effort_ref_all$fao_area), na.last = FALSE) # there is an NA which is not good.  
+trial<-reconstructed_effort_ref_all %>% 
+  filter(is.na(fao_area))
+unique(trial$eez_country_name) # "GuineaBissau"
+unique(trial$LME) # 27 
+nrow(trial)
+
+# Check file printed 
+
+
+
+
+# check hierarchy - that sum of effort is the same across FAO, LME, and EEZ. NOT SURE this is the right check ... maybe do plot of trends? 
+LME_check<-reconstructed_effort_ref_all %>% 
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e))
+# 995471507451.
+
+EEZ_check<-reconstructed_effort_ref_all %>% 
+  group_by(eez_country_name) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e))
+# 995471507451.
+
+FAO_check<-reconstructed_effort_ref_all %>% 
+  group_by(fao_area) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() 
+
+FAO_check<-FAO_check %>% 
+  filter(!is.na(fao_area)) %>% 
+  summarise(e = sum(e))
+# 995466621430. # when NA is removed 
+# 995471507451. # otherwise 
+
+# check range of values: 
+# WARNING negative values.... 
+min(reconstructed_effort_ref_all$NomActive) # -1.186503e-09 NEGATIVE! 
+check_negative<-filter(reconstructed_effort_ref_all, NomActive<0)
+max(check_negative$Year) # Only for reconstruction... and only for LME 0 and FAO 21 so need to check that plot 
+unique(check_negative[,c("Year","eez_country_name", "LME", "fao_area")]) 
+max(reconstructed_effort_ref_all$NomActive) # 233495502
+
+# check previously printed file
+a<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1841_2017_EEZ.csv")
+head(a)
+min(a$NomActive) # Here it is 0 so OK!
+
+# check effort before extrapolation (printed at the end of 05 and after a simple merging)
+b<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv")
+min(b$NomActive) # Here it is 0 so OK! then this is happening when extrapolating effort in 07 phase 1.  
+
+i = 1
+a<-decision[[i]] # created in phase 1 ... 
+min(a$Value, na.rm = TRUE)
+filter(a, is.na(Value))
+
+
+
+
+
+
+
+
+
+# check LME0  - what's the format? 
+trial<-reconstructed_effort_ref_all %>% 
+  filter(LME == 0) %>% 
+  group_by(eez_country_name) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup()
+
+nrow(trial) # 95 - why are there so many EEZs in LME 0? it makes sense, seee below 
+View(trial[order(trial$e, decreasing = TRUE), ])
+# is the Indonesia EEZ outside some LME? check website it is actually but still a bit strange that it makes 1/2 of the fishing effort in high seas ... 
+# indo, philippines, japan, png do have EEZ that are overboring LMEs, Au and USA possibly too and becasue of the islands, equador ok too but canada not sure ... 
+# check randomly after Australia: new zealand yes, Chile yes ... 
+# sort(unique(reconstructed_effort_ref_all$eez_country_name))
+
+# check previous file 
+a2<-a %>% 
+  filter(LME == 0) %>% 
+  group_by(eez_country_name) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup()
+
+a2[order(a2$e, decreasing = TRUE), ] # very similar values but not exactly the same (possibly due to War bug correction in this version). 
+
+
+
+
+
+
+
+
+# check what you'd have to do for aggregation aims 
+# if using EEZ: 
+c<-reconstructed_effort_ref_all %>% 
+  filter(eez_country_name == "High Seas")
+rownames(c)<-NULL
+head(c)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # # Plots for FAO report
 # rm(list=ls())
@@ -255,6 +393,7 @@ dev.off()
 a<-reconstructed_effort_ref_all %>% 
   filter(eez_country_name == "Kenya")
 
+head(a)
 unique(a$LME) # 0, 31
 
 nLME<- 31
@@ -435,6 +574,12 @@ reconstructed_effort_ref_all<-reconstructed_effort_ref_all %>%
                             Year > 2010 ~ "validation"))
 
 
+##### REMOVE FAO_LEM column
+
+
+
+
+
 # head(reconstructed_effort_ref_all) 
 
 yannick_dir <- "/rd/gem/private/users/yannickr"
@@ -464,7 +609,7 @@ library(data.table)
 library(mgcv)
 library(gridExtra)
 
-a<-read_csv("/rd/gem/private/users/yannickr/DKRZ_EffortFiles/effort_histsoc_1841_2010_EEZ_addFAO.csv")
+a<-read_csv("/rd/gem/private/users/yannickr/DKRZ_EffortFiles/effort_histsoc_1841_2010_EEZ.csv")
 
 ```
 

@@ -128,7 +128,7 @@ my_theme<-theme_bw()+
 
 ```{r extrapolate loop, echo = FALSE, fig.width=10, fig.height=7}
 
-toKeep<-sort(unique(effort$LME))
+toKeep<-sort(unique(effort$LME), na.last = TRUE)
 
 source("Script/Helper_functions_fishingEffort.R")
 
@@ -289,7 +289,7 @@ source("Script/Helper_functions_fishingEffort.R")
 # if effort - it does not matter
 
 # fix the k argument in GAM (based on war_param = "include" and reference = 1950)
-toKeep<-sort(unique(effort$LME))
+# toKeep<-sort(unique(effort$LME), na.last = TRUE)
 
 #### LME_FAO approach instead - now need a different code for LME that considers LME and FAO (and maybe LME and EEZ next?)
 
@@ -319,7 +319,7 @@ catch<-catch %>%
   mutate(LME_FAO = ifelse(LME == 0, paste0("FAO_for_LME0_", fao_area), paste0("LME_", LME)))
 
 # new toKeep
-toKeep<-sort(unique(effort$LME_FAO))
+toKeep<-sort(unique(effort$LME_FAO), na.last = TRUE)
 
 df_kappa = 6 
 # with kappa = 3 bumps in effort disappear and we force the perfect logarithmic shape on the catch/effort data, but GAM in most cases does not fit the data particularly well (as does not follow bumps ...)
@@ -404,7 +404,7 @@ data_for_plot_for_FAOreport<-list()
 tic()
 for(i in 1:length(toKeep)){
   
-  # i = 17
+  # i = 1
   print(toKeep[[i]])
 
   # yes war data when fitting GAM do not re-add original data as otherwise you overwrite predictions, reference mean over a decade
@@ -482,8 +482,10 @@ ref<-as.numeric(mean(ref$Value, na.rm = TRUE))
 rate_of_change<-trial1 %>% 
   filter(Year < 1950, Type == "NomActive") %>% 
   arrange(Year) %>% 
-  mutate(rate = 100 * (Value - ref)/ref) %>% 
-  mutate(Trial_back = ref + (rate/100)*ref) # only to check  
+  # mutate(rate = 100 * (Value - ref)/ref) %>% 
+  # mutate(Trial_back = ref + (rate/100)*ref) # only to check  
+  mutate(rate = (Value - ref)/ref) %>% 
+  mutate(Trial_back = ref + (rate)*ref) # See negative values bun inside function    
 
 unique(sort(rate_of_change$Year))
 
@@ -498,7 +500,8 @@ ref<-as.numeric(mean(ref$Value, na.rm = TRUE))
 to_substitute<-trial %>% 
   filter(Type == "NomActive", Year < 1950) %>% 
   full_join(select(rate_of_change, Year, rate)) %>% 
-  mutate(Value = ref + (rate/100)*ref) %>% 
+  # mutate(Value = ref + (rate/100)*ref) %>% 
+  mutate(Value = ref + (rate)*ref) %>% # See negative values bun inside function    
   select(-rate)
 
 # unique(sort(to_substitute$Year))
@@ -530,7 +533,7 @@ trial2<-trial %>%
 #   # mutate(Data = "GAM predictions")
 
 toAddPred<-to_substitute %>% 
-  mutate(Type = ifelse(Year > 1860,"pred", NA))
+  mutate(Type = ifelse(Year > 1860, "pred", NA))
 
 trial3<- trial2 %>% 
   full_join(toAddPred) %>% 
@@ -549,8 +552,6 @@ trial3_toPlot<-trial3 %>%
 # plot 
 
 yMax = max(filter(trial3, Type == "NomActive")$Value, na.rm = TRUE)
-# ann_text <- data.frame(Year = c(1841+10,1861+15,1961+15,1841+30), Value = c(rep(yMax,3),yMax-25000), lab = c("Spin-up","Transition","Experiment","*Predictions taken from LME 65"), group = rep("Effort (nominal, DkW)", 4), Data = rep("Reconstructed values", 4), Considered = rep("Yes", 4))
-
 ann_text <- data.frame(Year = c(1841+10,1961+15,1841+30), Value = c(rep(yMax,2),yMax-25000), lab = c("Transition","Experiment","*Predictions taken from LME 65"), group = rep("Effort (nominal, DkW)", 3), Data = rep("Reconstructed values", 3), Considered = rep("Yes", 3))
 
 # make "yes" always a dot and never a square 
@@ -592,9 +593,9 @@ plot_reconstructed_effort_LME_war_ref$`LME_64`<-plot_LME64
 plot_reconstructed_effort_LME_war_ref<-plot_reconstructed_effort_LME_war_ref[lapply(plot_reconstructed_effort_LME_war_ref,length)>0]
 
 if(df_kappa == 6){
-  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa6_1841_fixedValues_kappaLME31_EEZ_addFAO_warBugCorrected.pdf" # this version uses EEZ instead of administrative country # this version uses FAO regions instead of LME 0
+  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa6_1841_fixedValues_kappaLME31_EEZ_addFAO_warBugCorrected_negValueCorrected.pdf" # this version uses EEZ instead of administrative country # this version uses FAO regions instead of LME 0
 }else if (df_kappa == 3){
-  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa3_1841_fixedValues_kappaLME31_EEZ_addFAO_warBugCorrected.pdf"
+  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa3_1841_fixedValues_kappaLME31_EEZ_addFAO_warBugCorrected_negValueCorrected.pdf"
 }
 
 # if total catch included discards - no need see comment above:  
@@ -620,6 +621,8 @@ save(reconstructed_effort_LME_war_ref, plot_reconstructed_effort_LME_war_ref, da
 ```
 
 ## FAO report plots 
+
+These have not been re-done after the correction as no-need and can be updated when working on the report's final version.  
 
 ```{r}
 

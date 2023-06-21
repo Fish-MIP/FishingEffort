@@ -75,6 +75,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   # # toKeep=66
   # toKeep = "FAO_for_LME0_88" # fix problem with effort not been available before 2004
   # toKeep = "LME_24" # fix problem with war years being removed when they should have not for bug in code ...
+  # toKeep = "FAO_for_LME0_21" # fix negative effort values
   # kappa=6
   # war_param = "include"
   # war_decision = "no-add"
@@ -86,6 +87,8 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     group_by(Year) %>% 
     summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
     ungroup()
+  
+  # min(effort_extr$NomActive)
   
   maxYearEffort<-max(effort_extr$Year) 
   
@@ -153,7 +156,8 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   
   
   
-  #### why not just war_param == "exclude" ??? 
+  #### WARNING why not just war_param == "exclude" ??? and a second if(). 
+  # also check how the option war_decision = "no-add" would fit in here if you are using war_param == "exclude"
   if((year[[1]]<=1918 | year[[1]]<=1945) & war_param == "exclude"){
     df<-filter(df, !Year %in% warToRemove)
   }
@@ -208,11 +212,26 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     rate_of_change<-df %>% 
       arrange(Year) %>% 
       mutate(pred = as.numeric(pred)) %>% 
-      mutate(rate = 100 * (pred - ref)/ref) %>% 
-      mutate(Trial_back = ref + (rate/100)*ref) # only to check  
+      # mutate(rate = 100 * (pred - ref)/ref) %>%
+      # mutate(Trial_back = ref + (rate/100)*ref) # only to check
+      mutate(rate = (pred - ref)/ref) %>%
+      mutate(Trial_back = ref + (rate)*ref) # only to check
     
-    # check 
-    # filter(rate_of_change, Year >= 1950, Year <= 1960)
+    # # check 
+    # # filter(rate_of_change, Year >= 1950, Year <= 1960)
+    # # check LME
+    # pred = 2.22e-16
+    # ref = 99055.35
+    # pred-ref
+    # rate = 100 * (pred-ref)/ref
+    # ref + (rate/100)*ref
+    # WARNING - the track_back with these values should be 0 
+    # as the new value is too small compared to the ref values 
+    # but sometimes when I calculate this in the dataframe above 
+    # I get -2.91e-11 and I don't know why 
+    # (probably the more precise value as -16 + 5 = -11? and becasue rate is not exactly -1)
+    # it does not happen when I delete the 100* and the /100 ... 
+    
     
     # 2. extend effort back using rate of change in catch 
     
@@ -229,9 +248,38 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     
     effort_reconstruct<-effort_extr %>% 
       full_join(rate_of_change, by = "Year") %>% 
-      mutate(NomActive_catch_based = case_when(Year >= 1950 ~ NomActive,
-                                               Year < 1950 ~ ref + (rate/100)*ref))
+      mutate(NomActive_catch_based = case_when(
+        # Year >= 1950 ~ NomActive,
+        # Year < 1950 ~ ref + (rate/100)*ref,
+        Year >= 1950 ~ NomActive,
+        Year < 1950 ~ ref + (rate)*ref))
   
+    # # check for negative values in effort 
+    # effort_reconstruct[order(effort_reconstruct$Year),]
+    
+    # NOTE - now I get a different result with the same calculations because ref relates to effort and not catch 
+    # Year NomActive catch_tot     pred  rate Trial_back NomActi…¹
+    # <dbl>     <dbl>     <dbl>    <dbl> <dbl>      <dbl>     <dbl>
+    # 1  1861        NA   NA      2.22e-16  -100  -2.91e-11  -7.45e-9
+    # 2  1862        NA   NA      2.22e-16  -100  -2.91e-11  -7.45e-9
+    # 3  1863        NA   NA      2.22e-16  -100  -2.91e-11  -7.45e-9
+    # 4  1864        NA   NA      2.22e-16  -100  -2.91e-11  -7.45e-9
+    
+    # when I delete 100* and /100 I get 0s instead of the very small negative values 
+    # but just in case transform negative values into 0s below 
+    ### WARNING should this be done at the end after the division between 
+    # effort reconstruction based on effort and based on catches? 
+    effort_reconstruct<-effort_reconstruct %>% 
+      mutate(NomActive_catch_based = ifelse(NomActive_catch_based<0, 0, NomActive_catch_based))
+    
+    
+    
+    
+    
+    
+    
+    
+    
     # # check
     # ggplot(data = effort_reconstruct, aes(x = Year, y = NomActive_catch_based)) +
     #   geom_point()
@@ -258,7 +306,17 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     df<-df %>% 
       mutate(NomActive = ifelse(is.na(NomActive), pred, NomActive)) 
     
+    # WARNING this is to fix negative values in predictions 
+    # (relate to FAO_for_LME0_21 adn corrected above when effort is calculated using catches)
+    # but just in case done here too
+    df<-df %>% 
+      mutate(NomActive = ifelse(NomActive<0, 0, NomActive))
+    
+    
   } # end difference between var 
+  
+  
+  
   
   # FINAL STEPS ----
   
@@ -266,6 +324,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   
   # add back war time in raw catches - only if you had excluded them above
   # WARNING - CHECK THIS but currently not used as war_param = "include"
+  # WARNING - what about the war_decision = "no-add" option? 
   if(war_param == "exclude"){
     
     if (year[[1]]<=1918 | year[[1]]<=1945){
@@ -290,6 +349,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   }
   
   # add back data after pick in both catches and effort
+  # this is done in original catches if catches was used for prediction or effort if effort was used for predictions. 
   if (dim(toAddBack)[1]!=0){
     df<-df %>% 
       full_join(toAddBack) 
@@ -315,20 +375,6 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   
   final_df<-final_df %>% 
     full_join(add_df)
-  
-  # # relative to 1950
-  # # WARNING CHECK THIS - not sure we need it 
-  # ref<-final_df %>% 
-  #   filter(Year == 1950)
-  # 
-  # final_relative<-final_df %>% 
-  #   mutate(EffRelative = (NomActive-ref$NomActive)/ref$NomActive, 
-  #          PredRelative = (pred-as.numeric(ref$pred))/as.numeric(ref$pred),
-  #          CatchRelative = (catch_tot-ref$catch_tot)/ref$catch_tot) 
-  # 
-  # final_relative<-final_relative %>% 
-  #   dplyr::select(Year, EffRelative:CatchRelative) %>% 
-  #   gather("Type", "Value", -Year)
   
   # WARNING - check Warning with gather, use pivot_longer instead
   final_df<-final_df %>% 
@@ -384,13 +430,10 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   ann_text <- data.frame(Year = c(1841+10,1961+15), Value = rep(yMax,2), lab = c("Transition","Experiment"), group = rep("Effort (nominal, DkW)", 2), Data = rep("Reconstructed values", 2), Considered = rep("Yes", 2))
   
   plot<-ggplot(data = final_df_plot, aes(x = Year, y = Value, group = Data, color = Data, shape=Considered)) +
-    # ggtitle(paste("LME", toKeep, sep = " "))+
     ggtitle(toKeep)+
     facet_wrap(~group, scales = "free", nrow = 2)+
-    annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
-    # annotate("rect",xmin=1861, xmax=1960, ymin=0, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # transition b2e2e2
-    annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
-    # annotate("rect",xmin=2010, xmax=2017, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # validation 238b45
+    annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ 
+    annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ 
     geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
     geom_point(data = filter(final_df_plot, Data == "Reconstructed values"),size=1)+
     geom_line(data = filter(final_df_plot, Data == "GAM predictions")) +
@@ -425,8 +468,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
 effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
   
   # # trial
-  # # error i = 17 (FAO_for_LME0_88)
-  # i = 17 # no effort reconstruction for this region! probably because only very recent data is available...
+  # i = 1
   # historical_effort = decision[[i]] # effort from 1841 to 2017 at LME level from analysis above - missing groups (eez, gear, fgroup, saup, sector, etc.)
   # recent_effort = recent_effort # effort from 1950 to 2017 with all groups
   # toKeep = toKeep[[i]]
@@ -446,9 +488,6 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
     recent_effortB<-recent_effort %>% 
       filter(Year >= 1974, Year <=1984)
   }
-  
-  
-  
   
   
   
@@ -485,16 +524,19 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
   
   
   recent_effortB<-recent_effortB %>% 
-    group_by(eez_country_name,SAUP,Gear,FGroup,Sector,LME,fao_area) %>% # added fao_area for LME0 grouping 
+    group_by(eez_country_name,SAUP,Gear,FGroup,Sector,LME,fao_area,LME_FAO) %>% 
+    # added fao_area for LME0 grouping, 
+    # also added LME_FAO as this is the new grouping column (same value across all rows) 
     summarise(NomActive = mean(NomActive, na.rm = TRUE)) %>% 
     ungroup() %>% 
     mutate(contribution = NomActive/sum(NomActive, na.rm = TRUE))
   
   # check
-  sum(recent_effortB$contribution, na.rm = TRUE)
+  # sum(recent_effortB$contribution, na.rm = TRUE)
   
   # now you work on the historical data 1841-1950.
-  # FIRST - create all combinations of groups in historical years - e.g. 1841 all eez, saup, grear, fgroup, sector present in the reference years (1950-1960) with contribution being constant across year (proportions don't change, effort does), 1842 same story ... 
+  # FIRST - create all combinations of groups in historical years
+  # e.g. 1841 all eez, saup, grear, fgroup, sector present in the reference years (1950-1960) with contribution being constant across year (proportions don't change, effort does), 1842 same story ... 
   Year= seq(1841,1949)
   toExpend<-recent_effortB %>% 
     select(-NomActive) %>% 
@@ -558,11 +600,12 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
   
   
   
-  # # check - ok - the sum of effort at the LME level matches .... 
+  # # check - ok - the sum of effort at the LME level matches ....
   # final_df %>% filter(Year ==1841) %>% mutate(a = sum(NomActive))
   # decision[[1]] %>% filter(Year ==1841) # compare a with original data
   
-  # FORTH - merge merge historical effort where contributions to the groups has been calculated above (1841-1950) with recent_effort (1950-2017)
+  # FORTH - merge merge historical effort where contributions to the groups 
+  # has been calculated above (1841-1950) with recent_effort (1950-2017)
   # sort(unique(final_df$Year))
   # sort(unique(recent_effort$Year))
   # 
@@ -584,10 +627,8 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
   #   summarise(effort = sum(NomActive, na.rm = TRUE)) %>%
   #   ungroup()
   # 
-  # pdf("Output/trial.pdf", height = 8, width = 6)
   # ggplot(trial, aes(x = Year, y = effort))+
   #   geom_point()
-  # dev.off()
   
   # final df for plotting 
   data_plot<-final_df %>%
@@ -609,13 +650,8 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
   
   plot<-ggplot(data = data_plot, aes(x = Year, y = NomActive, group = Gear, color = Gear)) +
     ggtitle(paste("LME", toKeep, sep = " "))+ # WARNING - check this is correct
-    annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
-    # annotate("rect",xmin=1861, xmax=1960, ymin=0, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # transition b2e2e2
-    annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
-    # annotate("rect",xmin=1841, xmax=1950, ymin=0, ymax=Inf, fill = "#edf8fb", alpha = 0.4)+ # spin-up
-    # annotate("rect",xmin=1950, xmax=1961, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # transition
-    # annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#66c2a4", alpha = 0.4)+ # projection 
-    # annotate("rect",xmin=2010, xmax=2017, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # validation
+    annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ 
+    annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+
     geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
     geom_line(size = 0.5)+
     geom_point(size = 0.5)+
@@ -625,29 +661,22 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
     plot<-plot+
       geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)
   }else{
-    plot<-plot+
-      geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)+
-      geom_vline(xintercept=1960, linetype="dashed", color = "red", size=0.5)
+    
+    ### WARNING adjust FAO_for_LME0_88
+    
+    if(toKeep == "FAO_for_LME0_88"){
+      plot<-plot+
+        geom_vline(xintercept=1974, linetype="dashed", color = "red", size=0.5)+
+        geom_vline(xintercept=1984, linetype="dashed", color = "red", size=0.5)
+    
+      }else{
+        plot<-plot+
+          geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)+
+          geom_vline(xintercept=1960, linetype="dashed", color = "red", size=0.5)
+      
+    }
+    
   }
-  
-  
-  ### WARNING adjust FAO_for_LME0_88
-  if(toKeep == "FAO_for_LME0_88"){
-    plot<-plot+
-      geom_vline(xintercept=1974, linetype="dashed", color = "red", size=0.5)+
-      geom_vline(xintercept=1974, linetype="dashed", color = "red", size=0.5)
-  }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   
   # # check with gear and FGroup - OK
   # pdf("Output/trial1.pdf", height = 8, width = 6)
