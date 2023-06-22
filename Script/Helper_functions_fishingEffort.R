@@ -53,7 +53,6 @@ join_effort_data <- function(this_file_name){
     left_join(LMEs, by=c("Lat", "Lon")) %>%
     left_join(EEZ_adj, by=c("Lat", "Lon")) %>%
     left_join(FAO_regions, by=c("Lat", "Lon")) %>%
-    # left_join(FAO_LME_new, by = c("Lat", "Lon")) %>% # CN added no need
     group_by(eez_country_name, fao_area, LME, SAUP, Gear, FGroup, Sector) %>%
     summarise(NomActive = sum(NomActive, na.rm = TRUE),
               EffActive = sum(EffActive, na.rm = TRUE),

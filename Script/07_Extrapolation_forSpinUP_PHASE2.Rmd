@@ -33,11 +33,7 @@ library(gridExtra)
 
 select<-dplyr::select
 
-```
-
-## Define plot theme 
-
-```{r theme, echo = FALSE}
+source("Script/Helper_functions_fishingEffort.R")
 
 my_theme<-theme_bw()+
   theme(text = element_text(size = 10), # this should be overwritten by the below
@@ -65,11 +61,8 @@ effort<-effort %>%
 effort<-effort %>% 
   mutate(LME_FAO = ifelse(LME == 0, paste0("FAO_for_LME0_", fao_area), paste0("LME_", LME)))
 
-# load reconstructure effort data (temp_data) printed in 07_PHASE1 
+# load reconstructed effort data (temp_data) printed in 07_PHASE1 
 load("~/FishingEffort/Data/temp_effort.RData") # the difference with effort above is the 1842-1950 reconstruction
-
-# load helper functions 
-source("Script/Helper_functions_fishingEffort.R")
 
 # decide on version above (07_PHASE1): 
 decision<-reconstructed_effort_LME_war_ref
@@ -91,7 +84,6 @@ decision<-reconstructed_effort_LME_war_ref
 
 # toKeep<-sort(unique(effort$LME))
 toKeep<-sort(unique(effort$LME_FAO), na.last = TRUE)
-
 names(decision)
 
 reconstructed_effort_ref<-list()
@@ -101,8 +93,8 @@ tic()
 for(i in 1:length(decision)){
 
   # i = 1 
-  # WARNING problems with FAO_for_LME0_88 # i = 17 
-  # WARNING problems with FAO_for_LME0_21 # i =1 
+  # WARNING problems with FAO_for_LME0_88 # i = 17 # possibly fixed 
+  # WARNING problems with FAO_for_LME0_21 # i =1 # fixed 
   
   
   

@@ -126,58 +126,68 @@ missing_fao_eez <-
   filter(is.na(fao_area)) %>% #29831 where FAO areas are NA but LME are not
   filter(is.na(eez_country_name)) #29830 where EEZ are NA but LME are not - this does not change depending on order. So there is one cell where the is LME data and EEZ data but not FAO area data
 
-# Camilla's CHECKS
-nrow(missing_fao_eez) # 29830 - is this land, which is given as 0 for LMEs instead of NAs?
-unique(missing_fao_eez$LME) # LME 0 and LME 58  
-# check LME 0: LME 0 also includes land - see above 
-trial<-as.data.table(select(LMEs, "Lon", "Lat", "LME"))
-# check LME 58 - kara sea close to north pole.
-check_58<-filter(missing_fao_eez, LME == 58)  
-trial2<-as.data.table(filter(trial, LME == 58)) 
-nrow(check_58) # OK this is only 6 cells over 2002 belonging to kara sea
-nrow(trial2)
-# check data for LME 58
-check_58_notMissing<-filter(all_spatial_layers, LME == 58) # some Area == 0 which is wrong but we are not actually providing info on areas here. so all good.
-# FAO area and EEZ for the NAs should be: 
-unique(check_58_notMissing$fao_area) # either 18 (Arctic Sea) or 27 (Atlantic north East- adiacent to 18)
-unique(check_58_notMissing$eez_country_name) # Russian Fed
-# check map - low resolution but looking OK
-colnames(trial2)<-c("x", "y", "z")
-trial2_raster<-rasterFromXYZ(trial2)
-plot(trial2_raster)
-# decision: leave as it is ....
+# Camilla's CHECKS - IMPORTANT 
+# the above one grid cell needs to be fixed otherwise it is carried out in final effort dataset and giving an additional FAO region called 'NA', where LME = 0 and EEZ = GuineaBissau
+# by looking at map, this is FAO 34
+all_spatial_layers %>% 
+  filter(is.na(fao_area) & !is.na(eez_country_name) & !is.na(LME))
 
-# why so many NAs for EEZ? 
-missing_eez <- 
-  all_spatial_layers %>% 
-  filter(is.na(eez_country_name)) 
-nrow(missing_eez) # 79296
-missing_eez2<-missing_eez %>% 
-  filter(LME != 0) # remove LME 0 and EEZ NAs which could be land and open ocean 
-nrow(missing_eez2) # 4303 - these should not be NAs: if they were outside EEZ and withing LME they should be labelled as 0s. Possible reason for discrepancy: different land-ocean mask between LME and EEZ  
-# check single EEZ/LME combination. File found in yannickr folder transformed in cvs (CN).
-FAO_LME_keys_yannick <- read_csv("/rd/gem/private/users/yannickr/LME_FAO_coding_CN.csv")
-lme_codes<-FAO_LME_keys_yannick %>% 
-  filter(LME_FAO_code == "LME") %>% 
-  select(LME_FAO_name, LME_FAO_number)
-colnames(lme_codes)<-c("LME_name", "LME")
-missing_eez2<-missing_eez2 %>% 
-  left_join(lme_codes)
-unique(missing_eez2[,c("LME_name", "LME")]) # all problematic EEZs at poles 
-# plot missing values to check: 
-missing_eez3<-missing_eez2 %>% 
-  filter(LME == 18) 
-trial<-as.data.table(select(missing_eez3, "Lon", "Lat", "LME"))
-trial_raster<-rasterFromXYZ(trial)
-plot(trial_raster)
+a<-data.frame(Lon =-14.75, Lat=12.25, fao_area=34)
+FAO_regions<-FAO_regions %>% full_join(a)
+FAO_regions %>% filter(Lon == -14.75, Lat == 12.25)
 
-# could be land discrepancy: 
-# 1 yes
-# 56 could be? 
-# 18 yes ... 
-
-## Could this be problematic - e.g. coastal effort considered for LMEs and not EEZs? Asked Julia - only a few LME/EEZ at high lat affected. also these are the files used to work with catch and effort by Reg and Yannick and here we are using these files for consistency. 
-# should we use the FAO_LME and FAO_EEZ interaction masks provided by Denisse (+FAO regions column) instead of LME and EEZ columns? No, these were created for inputs only + see reason above. 
+# # Camilla's CHECKS
+# nrow(missing_fao_eez) # 29830 - is this land, which is given as 0 for LMEs instead of NAs?
+# unique(missing_fao_eez$LME) # LME 0 and LME 58  
+# # check LME 0: LME 0 also includes land - see above 
+# trial<-as.data.table(select(LMEs, "Lon", "Lat", "LME"))
+# # check LME 58 - kara sea close to north pole.
+# check_58<-filter(missing_fao_eez, LME == 58)  
+# trial2<-as.data.table(filter(trial, LME == 58)) 
+# nrow(check_58) # OK this is only 6 cells over 2002 belonging to kara sea
+# nrow(trial2)
+# # check data for LME 58
+# check_58_notMissing<-filter(all_spatial_layers, LME == 58) # some Area == 0 which is wrong but we are not actually providing info on areas here. so all good.
+# # FAO area and EEZ for the NAs should be: 
+# unique(check_58_notMissing$fao_area) # either 18 (Arctic Sea) or 27 (Atlantic north East- adiacent to 18)
+# unique(check_58_notMissing$eez_country_name) # Russian Fed
+# # check map - low resolution but looking OK
+# colnames(trial2)<-c("x", "y", "z")
+# trial2_raster<-rasterFromXYZ(trial2)
+# plot(trial2_raster)
+# # decision: leave as it is ....
+# 
+# # why so many NAs for EEZ? 
+# missing_eez <- 
+#   all_spatial_layers %>% 
+#   filter(is.na(eez_country_name)) 
+# nrow(missing_eez) # 79296
+# missing_eez2<-missing_eez %>% 
+#   filter(LME != 0) # remove LME 0 and EEZ NAs which could be land and open ocean 
+# nrow(missing_eez2) # 4303 - these should not be NAs: if they were outside EEZ and withing LME they should be labelled as 0s. Possible reason for discrepancy: different land-ocean mask between LME and EEZ  
+# # check single EEZ/LME combination. File found in yannickr folder transformed in cvs (CN).
+# FAO_LME_keys_yannick <- read_csv("/rd/gem/private/users/yannickr/LME_FAO_coding_CN.csv")
+# lme_codes<-FAO_LME_keys_yannick %>% 
+#   filter(LME_FAO_code == "LME") %>% 
+#   select(LME_FAO_name, LME_FAO_number)
+# colnames(lme_codes)<-c("LME_name", "LME")
+# missing_eez2<-missing_eez2 %>% 
+#   left_join(lme_codes)
+# unique(missing_eez2[,c("LME_name", "LME")]) # all problematic EEZs at poles 
+# # plot missing values to check: 
+# missing_eez3<-missing_eez2 %>% 
+#   filter(LME == 18) 
+# trial<-as.data.table(select(missing_eez3, "Lon", "Lat", "LME"))
+# trial_raster<-rasterFromXYZ(trial)
+# plot(trial_raster)
+# 
+# # could be land discrepancy: 
+# # 1 yes
+# # 56 could be? 
+# # 18 yes ... 
+# 
+# ## Could this be problematic - e.g. coastal effort considered for LMEs and not EEZs? Asked Julia - only a few LME/EEZ at high lat affected. also these are the files used to work with catch and effort by Reg and Yannick and here we are using these files for consistency. 
+# # should we use the FAO_LME and FAO_EEZ interaction masks provided by Denisse (+FAO regions column) instead of LME and EEZ columns? No, these were created for inputs only + see reason above. 
 
 ```
 
@@ -404,7 +414,6 @@ Not needed see reason above
 ```{r}
 
 source("Script/Helper_functions_fishingEffort.R")
-
 
 #compressed_effort_files <- list.files(file.path(compressed_effort_dir), full.names = TRUE)
 original_effort_files <- list.files(file.path(original_effort_dir), pattern = ".csv")

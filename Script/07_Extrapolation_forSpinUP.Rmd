@@ -74,9 +74,22 @@ library(gridExtra)
 
 select<-dplyr::select
 
+source("Script/Helper_functions_fishingEffort.R")
+
+my_theme<-theme_bw()+
+  theme(text = element_text(size = 10), # this should be overwritten by the below
+        plot.title = element_text(size = 10),
+        axis.title = element_text(size = 9),
+        axis.text = element_text(size = 8),
+        legend.title=element_text(size = 9), 
+        legend.text=element_text(size = 8),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.key.size = unit(0.1, "cm")) 
+
 ```
 
-## Effort data 
+## Effort & catch data 
 
 ```{r effort, echo = FALSE}
 
@@ -90,12 +103,6 @@ effort<-effort[,-1]
 effort<-effort %>% 
   filter(FGroup != "Unknown_EEZ")
 
-```
-
-## Catch data 
-
-```{r catch, echo = FALSE}
-
 # catch<- read_csv("/rd/gem/private/users/yannickr/catch_histsoc_1869_2017_EEZ.csv")
 catch<- read_csv("/rd/gem/private/users/yannickr/catch_histsoc_1869_2017_EEZ_addFAO.csv")
 
@@ -107,32 +114,13 @@ catch$catch_tot<-catch$Reported + catch$IUU
 
 ```
 
-## Define plot theme 
-
-```{r theme, echo = FALSE}
-
-my_theme<-theme_bw()+
-  theme(text = element_text(size = 10), # this should be overwritten by the below
-        plot.title = element_text(size = 10),
-        axis.title = element_text(size = 9),
-        axis.text = element_text(size = 8),
-        legend.title=element_text(size = 9), 
-        legend.text=element_text(size = 8),
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(), 
-        legend.key.size = unit(0.1, "cm")) 
-  
-```
-
 ## Extrapolate total effort by LME loop
 
 ```{r extrapolate loop, echo = FALSE, fig.width=10, fig.height=7}
 
-toKeep<-sort(unique(effort$LME), na.last = TRUE)
+### NOTE - these analyses were done at the LME level - i.e. when LME0 was a unique area not divided into FAO regions.----
 
-source("Script/Helper_functions_fishingEffort.R")
-
-### NOTE - these analyses were done at the LME level - i.e. when LME0 was a unique area not divided into FAO regions.  
+# toKeep<-sort(unique(effort$LME), na.last = TRUE)
 
 # # first loop ----
 # # this is with war and ref at 1950 (this only applies to catches)
