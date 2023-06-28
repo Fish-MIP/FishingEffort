@@ -86,7 +86,7 @@ trial<-effort_tot %>%
 
 # explore lme42 and 38 for checking - OK plots match
 lme42<-trial %>% 
-  filter(LME == "38") %>% 
+  filter(LME == "42") %>% 
   group_by(Year, Sector) %>% 
   summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
   ungroup()
