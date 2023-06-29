@@ -64,7 +64,13 @@ catch<-hist %>%
 
 # use same approach as in 02_merge_effort_spetial_data.Rmd to add LME, EEZ, FAO regions and aggregate data by these groups
 
-### paste code from script 02 ----
+```
+
+# Explore files and join the main data
+
+```{r}
+
+### paste code from script 02
 
 library(dplyr)
 library(vroom)
@@ -75,26 +81,40 @@ library(here)
 library(RColorBrewer)
 
 select <- dplyr::select
+rename <- dplyr::rename
 
 yannick_dir <- "/rd/gem/private/users/yannickr"
-# original_effort_dir <- "/rd/gem/private/users/yannickr/effort_mapped_bycountry"
-# aggregated_files_dir <- "/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated/"
 
-# check and adjust EEZ file 
 (EEZ <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv"))) 
+
+## CN how many before we filter? 
+EEZ_tot<-EEZ %>% 
+  filter(FAOname != "High Seas") %>% 
+  select(FAOname, CNumber) %>% 
+  unique()
+
+nrow(EEZ_tot) # 193
+ 
 #EEZ data is duplicated in places because of disputed claims to cells - just going to take the first country listed
 (EEZ_disputes <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv")) %>% filter(DISPUTED==TRUE))
+
 (take_first <- EEZ_disputes[!duplicated(EEZ_disputes[c("Lon", "Lat")]),])
+
+head(EEZ) # CN - might need to change aggregation levels - use the FAOname as the  Admin_Country aggregates EEZ that are under the same administrative country. 
+unique(EEZ[,c("CNumber", "FAOname", "A_Code", "Admin_Country")])
+# View(unique(EEZ[,c("CNumber", "FAOname")])) # unique CNubmer and FAOName
+# View(unique(EEZ[,c("A_Code", "FAOname")])) # repeated A_Code for some FAOname (I guess under the same Admin_country)
+
 (EEZ_adj <- bind_rows(EEZ %>% 
             filter(DISPUTED == FALSE),
-            take_first) %>%
-    # select(Lat, Lon, A_Code, Admin_Country) %>% # changing to EEZ instead of administrative country
-    # dplyr::rename(eez_country_code = A_Code, 
-    #        eez_country_name = Admin_Country) %>% 
-    select(Lat, Lon, CNumber, FAOname) %>% 
-    dplyr::rename(eez_country_code = CNumber,
-           eez_country_name = FAOname) %>%
-    distinct())
+          take_first) %>% 
+  # select(Lat, Lon, A_Code, Admin_Country) %>% # CN changed - we need the EEZ and not the administrative country
+  select(Lat, Lon, CNumber, FAOname) %>%
+  # rename(eez_country_code = A_Code,
+        # eez_country_name = Admin_Country) %>% # CN same as above
+  rename(eez_country_code = CNumber,
+         eez_country_name = FAOname) %>%
+   distinct())
 
 united_coords <- EEZ_adj %>% unite("coords", c("Lon", "Lat"), sep = " ")
 
@@ -102,30 +122,43 @@ EEZ_adj <- EEZ_adj[-which(duplicated(united_coords[,"coords"])==TRUE),] %>% as.d
 EEZ_adj <- lazy_dt(EEZ_adj)
 
 # check EEZ data - EEZs look ok
-EEZ_xyz <- EEZ_adj %>% as_tibble() %>%  dplyr::rename(x=Lon, y= Lat, z=eez_country_code) %>%  select(x,y,z)  
+
+# EEZ_xyz <- EEZ_adj %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=eez_country_code) %>%  select(x,y,z)  # CN adjust as per above 
+EEZ_xyz <- EEZ_adj %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=eez_country_code) %>%  select(x,y,z) 
 EEZ_raster <- raster::rasterFromXYZ(EEZ_xyz)
+plot(EEZ_raster) # CN to 800 because this is eez_country_code
+# unique(EEZ_raster$z)
 
-# ggplot(data = EEZ_xyz)+
-#   geom_tile(aes(x=x, y=y, fill=z)) + 
-#   scale_fill_gradientn(colours = RColorBrewer::brewer.pal(n = 9, name = "Spectral"))
-
-EEZ_adj<-EEZ_adj %>% select(-eez_country_code) # CN no need for this enymore - avoid confuction
+EEZ_adj<-EEZ_adj %>% select(-eez_country_code) # CN no need for this anymore - avoid confusion 
 nrow(as.data.table(EEZ_adj))
 EEZ_adj<-unique(EEZ_adj)
 nrow(as.data.table(EEZ_adj))
 
+# ggplot(data = EEZ_xyz)+
+#   geom_tile(aes(x=x, y=y, fill=z)) + 
+#   scale_fill_gradientn(colours = RColorBrewer::brewer.pal(n = 9, name = "Spectral"))
+# 
+# ggsave(filename = here("Explore/cottrell-explore/eez_wo_duplicates_CN.jpg"), dpi=300, device = "jpg", width = 9, height = 5)
 
-
-# LME data
+#LME data
 (LMEs <- fread(file.path(yannick_dir, "LMESeq.csv")))
 LMEs <- lazy_dt(LMEs)
 
+LME_xyz <- LMEs %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=LME) %>%  select(x,y,z) 
+LME_raster <- raster::rasterFromXYZ(LME_xyz)
+plot(LME_raster) # CN NOTE - land is 0 here.  
+
 #FAO regions data
 (FAO_regions <- readRDS(file.path(yannick_dir, "Cells_LatLon_FAO_regions.rds")) %>% 
-    dplyr::rename(Lon=x, Lat = y) %>% mutate(fao_area= as.double(fao_area)) %>% as.data.table())
+    rename(Lon=x, Lat = y) %>% mutate(fao_area= as.double(fao_area)) %>% as.data.table())
+
 FAO_regions <- lazy_dt(FAO_regions)
 
-# Looking at the CNumber - this appears the be the iso3n code for the country. This is often the name the same as the admin country but is different when the land masses are territories of other countries
+FAO_xyz <- FAO_regions %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=fao_area) %>%  select(x,y,z) 
+FAO_raster <- raster::rasterFromXYZ(FAO_xyz)
+plot(FAO_raster) # CN NOTE - land is a mix of NAs and the actual FAO region. it makes sense by looking at the map from website though land there is overplayed and here not important as no data will be there. 
+
+# for eez: Looking at the CNumber - this appears the be the iso3n code for the country. This is often the name the same as the admin country but is different when the land masses are territories of other countries
 
 #The data have different rows. Want to make sure they line up
 nrow(EEZ_adj) #179904
@@ -143,9 +176,21 @@ missing_fao_eez <-
   filter(is.na(fao_area)) %>% #29831 where FAO areas are NA but LME are not
   filter(is.na(eez_country_name)) #29830 where EEZ are NA but LME are not - this does not change depending on order. So there is one cell where the is LME data and EEZ data but not FAO area data
 
-## end paste ----
+# Camilla's CHECKS - IMPORTANT 
+# the above one grid cell needs to be fixed otherwise it is carried out in final effort dataset and giving an additional FAO region called 'NA', where LME = 0 and EEZ = GuineaBissau
+# by looking at map, this is FAO 34
+all_spatial_layers %>% 
+  filter(is.na(fao_area) & !is.na(eez_country_name) & !is.na(LME))
 
-# add LME and  EEZ to the catch and aggregate ---- 
+a<-data.frame(Lon =-14.75, Lat=12.25, fao_area=34)
+FAO_regions<-FAO_regions %>% full_join(a)
+FAO_regions %>% filter(Lon == -14.75, Lat == 12.25)
+
+```
+
+# Run function to aggregate data 
+
+```{r}
 
 # unique(sort(as.data.table(catch)$Lat))
 # unique(sort(as.data.table(catch)$Lon))
@@ -156,7 +201,7 @@ missing_fao_eez <-
 # unique(sort(as.data.table(EEZ_adj)$Lat))
 # unique(sort(as.data.table(EEZ_adj)$Lon))
 
-head(catch)
+# head(catch)
 
 tic()
 catch2 <- catch %>%
@@ -164,23 +209,13 @@ catch2 <- catch %>%
   left_join(LMEs, by=c("Lat", "Lon")) %>%
   left_join(EEZ_adj, by=c("Lat", "Lon")) %>%
   left_join(FAO_regions, by=c("Lat", "Lon")) %>%
-  
-  # WARNING: Should we weight by grid cell area here??? Same for effort (in script 02)! See comment top of file. 
-  
   group_by(Year,CNumber,FGroup,fao_area, LME, eez_country_name,Sector) %>%
   summarise(Reported = sum(Reported, na.rm = TRUE),
             IUU = sum(IUU, na.rm = TRUE),
             Discards = sum(Discards, na.rm = TRUE)) %>% 
   ungroup() %>% 
   as.data.table() 
-toc()
-
-# # should we sum catches?
-# catch2<-catch2 %>%
-#   rowwise(Year,CNumber, FGroup,LME,eez_country_code,eez_country_name,Sector) %>%
-#   dplyr::summarise(catch = sum(Reported,IUU)) %>% # dischards not usually accounted for
-#   ungroup() # %>%
-#   # mutate(Sector = "Industrial")
+toc()# 383.162 # 6 min
 
 ```
 
@@ -191,18 +226,18 @@ toc()
 # ORIGIN: created through script 02 from original Yannicks country files in Gem48 and re-arranged and trimmed in script 05.    
 # effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ.csv") # use EEZ version where EEZ is not the administrative country
 effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv") # use EEZ version where EEZ is not the administrative country and where FAO regions are added 
-head(effort)
+# head(effort)
 effort<-effort[,-1]
 
 # do the LME and EEZ match? ----
 
-# # EEZ - OK
-# sort(unique(catch$eez_country_name))
-# sort(unique(effort$eez_country_name))
-# 
-# # LME - OK
-# sort(unique(catch$LME)) 
-# sort(unique(effort$LME))
+# EEZ - OK
+sort(unique(catch2$eez_country_name), na.last = TRUE)
+sort(unique(effort$eez_country_name), na.last = TRUE)
+
+# LME - OK
+sort(unique(catch2$LME),na.last = TRUE)
+sort(unique(effort$LME), na.last = TRUE)
 
 # fishing country 
 saup<-read_csv("/rd/gem/private/users/yannickr/SAUPcode_to_Country.csv")
@@ -232,12 +267,12 @@ taxon<-taxon %>%
   select(FunctionalGrp, Description) %>% 
   unique()
 
-# # any missing one in effort/ catch? No - all OK 
-# setdiff(unique(taxon$Description), unique(effort$FGroup))
-# setdiff(unique(effort$FGroup),unique(taxon$Description))
-# 
-# sort(unique(taxon$Description))
-# sort(unique(effort$FGroup))
+# any missing one in effort/ catch? No - all OK
+setdiff(unique(taxon$Description), unique(effort$FGroup))
+setdiff(unique(effort$FGroup),unique(taxon$Description)) # Unknown_EEZ which will be removed in 07
+
+sort(unique(taxon$Description), na.last = TRUE)
+sort(unique(effort$FGroup), na.last = TRUE) # Unknown_EEZ which will be removed in 07
 
 # merge 
 catch2<-catch2 %>% 
@@ -258,7 +293,8 @@ checked also with Watson and Tidd 2018 and looks OK https://www.sciencedirect.co
 
 annual<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/CheckCatchTotalsCN.csv")
 
-# unique(annual$Sector)
+head(annual)
+unique(annual$Sector)
 annual<-annual %>% 
   mutate(Sector = ifelse(Sector == "artisanal", "artisanal", "industrial")) %>% 
   select(-"...6") %>% 
@@ -283,10 +319,25 @@ plot<-ggplot(trial2, aes(x = Year, y = catch, group = key, color = key)) + # col
   theme_bw()+
   facet_grid(type~Sector)
 
-# version where we consider EEZ name and not administrative country and where we add FAO regions to the merging (previously there in code but committed given work on effort)
-pdf("Output/catch_compare_EEZ_addFAO.pdf", width = 10, height=7)
-plot
-dev.off()
+# # version where we consider EEZ name and not administrative country and where we add FAO regions to the merging (previously there in code but committed given work on effort)
+# pdf("Output/catch_compare_EEZ_addFAO.pdf", width = 10, height=7)
+# plot
+# dev.off()
+
+# check nesting:  
+# sum fao = sum LME = sum EEZ 
+# OK but not sure this check is meaningful
+check<-catch2 %>% 
+  mutate(sum = Reported + IUU + Discards)
+
+lme_check<-check %>% group_by(LME) %>% summarise(a = sum(sum)) %>% ungroup() 
+lme_check %>% summarise(sum(a)) # 6940447558.
+
+eez_check<-check %>% group_by(eez_country_name) %>% summarise(a = sum(sum)) %>% ungroup() 
+eez_check %>% summarise(sum(a)) # 6940447558.
+
+fao_check<-check %>% group_by(fao_area) %>% summarise(a = sum(sum)) %>% ungroup() 
+fao_check %>% summarise(sum(a)) # 6940447558.
 
 ```
 
@@ -296,7 +347,7 @@ dev.off()
 
 final_catch <- catch2
 
-unique(as.data.frame(final_catch)$Year)
+sort(unique(as.data.frame(final_catch)$Year), na.last = TRUE)
 # fwrite(x = as.data.frame(final_catch), file.path(yannick_dir, "catch_histsoc_1869_2017.csv"))
 # fwrite(x = as.data.frame(final_catch), file.path(yannick_dir, "catch_histsoc_1869_2017_EEZ.csv"))
 fwrite(x = as.data.frame(final_catch), file.path(yannick_dir, "catch_histsoc_1869_2017_EEZ_addFAO.csv"))
@@ -322,8 +373,7 @@ a
 this_source_path <- file.path("/rd/gem/private/users/yannickr/effort_mapped_bycountry", "mapped_1992_UP_892.csv")
 these_data <- read_csv(this_source_path)
 
-filter(these_data, NomActive ==0) # WARNING I don't understand these 0s... 
-
+filter(these_data, NomActive ==0) 
 b<-filter(these_data, FGroup == "Unknown_EEZ", NomActive !=0)
 b 
 sum(b$NomActive) 
