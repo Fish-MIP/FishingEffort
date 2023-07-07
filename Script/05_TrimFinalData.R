@@ -70,11 +70,90 @@ nrow(effort_new_Artisanal)+nrow(effort_new_Industrial)
 effort_spinup<-effort_tot %>% 
   filter(Year >= 1950, Year <= 2017) 
 
+
+## CHECK that numbers are as original data - OK they are the same 
+original<- effort_new %>% 
+  group_by(Sector) %>% 
+  summarise(e= sum(NomActive)) 
+
+# 1 APW    329157324772.
+# 2 I      492743814508.
+# 3 UP      60126428597.
+
+sum(original[1,2], original[3,2])
+# [1] 389283753370
+
+check<-effort_tot %>% 
+  group_by(Sector) %>% 
+  summarise(e= sum(NomActive)) 
+
+# 1 Artisanal  389283753370.
+# 2 Industrial 492743814508.
+
+check<-effort_spinup %>% 
+  group_by(Sector) %>% 
+  summarise(e= sum(NomActive)) 
+
+# 1 Artisanal  389283753370. 
+# 2 Industrial 492743814508.
+
 # write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017.csv") 
 # consider new aggregation using EEZ instead of administrative country 
 # write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ.csv") 
 # consider new aggregation using EEZ instead of administrative country and adding FAO column for LME 0 calcaultions later on
-write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv") 
+# write.csv(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv") 
+
+##### TESTS ----
+
+# # CHECK that numbers are as original data after printing the data - i.e. decimal handling 
+# check2<-read.csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv")
+# 
+# check3<-check2 %>% 
+#   group_by(Sector) %>% 
+#   summarise(e= sum(NomActive)) 
+# 
+# # NOT THE SAME - doe to how wite.csv handles decimals I think 
+# # 1 Artisanal  389283753417.
+# # 2 Industrial 492743814471.
+# 
+# # when writing a new file instead of overwriting an old one? 
+# # addFAO_2 (though deleted) - Same results as per the overwritten file 
+# # 1 Artisanal  389283753417.
+# # 2 Industrial 492743814471.
+# 
+# 
+# # these summed values are also slightly across same 
+# # files that have been printed at different times but using 
+# # the same code and initial 
+# # this I don't know why... 
+# # e.g. previous version printed
+# # 1 Artisanal  389283753417.
+# # 2 Industrial 492743814481.
+# # and 
+# # 1 Artisanal  389283753417.
+# # 2 Industrial 492743814468.
+
+# # what happens with fwrite and read_csv? It does not happen... SAME VALUES as original data
+library(data.table)
+fwrite(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv")
+# check2<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv")
+# 
+# check3<-check2 %>%
+#   group_by(Sector) %>%
+#   summarise(e= sum(NomActive))
+# 
+# # 1 Artisanal  389283753370.
+# # 2 Industrial 492743814508.
+# 
+# # is it the writing or the reading of the file? 
+# # use write.csv and read_csv - if values are correct 
+# # it is the reading function, otherwise it is the writing function or both
+# 
+# # it is the writing function mostly, and the reading function to a much smaller extent as 
+# # these are not exactly the same of when using wite.csv adn read.csv. 
+# # 1 Artisanal  389283753417.
+# # 2 Industrial 492743814473.
+
 
 
 #### NOTE RUN FOR NEW VERSIONS OF _addFAO ---------- 
