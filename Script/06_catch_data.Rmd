@@ -227,7 +227,7 @@ toc()# 383.162 # 6 min
 # effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ.csv") # use EEZ version where EEZ is not the administrative country
 effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv") # use EEZ version where EEZ is not the administrative country and where FAO regions are added 
 # head(effort)
-effort<-effort[,-1]
+# effort<-effort[,-1] # when file was printed using write.csv in 05
 
 # do the LME and EEZ match? ----
 
@@ -252,6 +252,10 @@ saup<-saup %>%
   dplyr::rename(SAUP = SAUP_Country_Nbr,
                 FCountryName = Country) %>% 
   select(-Region)
+
+# this shoudl be automatic - but do it anyway 
+catch2<-lazy_dt(catch2)
+
 
 catch2<-catch2 %>% 
   dplyr::rename(SAUP = CNumber) %>% 

@@ -1,5 +1,4 @@
 
-
 rm(list=ls())
 
 # # load libraries 
@@ -26,50 +25,78 @@ yannick_dir_new <- "/rd/gem/private/users/yannickr"
 
 # effort_new<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated.csv"))
 # consider new aggregation using EEZ instead of administrative country 
-effort_new<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated_EEZ.csv"))
-head(effort_new)
+# effort_new<-read_csv(file.path(yannick_dir_new, "all_effort_aggregated_EEZ.csv"))
+
+# use fread and data.table as in 02, much faster 
+# CHECK fread() and lazy_dt() work 
+
+library(data.table)
+library(dtplyr)
+effort_new<-fread(file.path(yannick_dir_new, "all_effort_aggregated_EEZ.csv"))
+class(effort_new) # [1] "data.table" "data.frame"
+colnames(effort_new) # works
+# after applying dplyer code as below: 
+# class(effort_new_Artisanal) # [1] "dtplyr_step_mutate" "dtplyr_step"  
+# colnames(effort_new_Artisanal) does not work 
+# Use as.data.table()/as.data.frame()/as_tibble() to access results
+
+# NOTE: The help of lazy_dt says this: 
+# "If you have a data.table, using it with any dplyr generic will 
+# automatically convert it to a lazy_dt object" 
+
+effort_new<-lazy_dt(effort_new) # to talk with dplyr
+class(effort_new) # [1] "dtplyr_step_first" "dtplyr_step"
+colnames(effort_new) # does not work
+
+# effort_new<-fread(file.path(yannick_dir_new, "all_effort_aggregated_EEZ.csv"), data.table = FALSE)
+# class(effort_new) # [1] "data.frame" 
+# colnames(effort_new) # works
+# # after applying dplyer code as below: 
+# class(effort_new_Artisanal) # [1] "tbl_df"     "tbl"        "data.frame"
+
+# head(effort_new)
 
 # aggregate artisanal
 effort_new_Artisanal<-effort_new %>% 
   filter(Sector !="I") %>% 
   group_by(fao_area, LME, eez_country_name, SAUP, Gear, FGroup, Year) %>% # add back fao_area - this aggregation is still needed as you are aggregating 2 artisanal efforts
   summarise(NomActive = sum(NomActive, na.rm = TRUE),
-            # EffActive = sum(EffActive, na.rm = TRUE), # no need for EffActive
             NV = sum(NV, na.rm = TRUE),
-            P = sum(P, na.rm = TRUE)) %>% # no need for GT
-  # GT = sum(GT, na.rm = TRUE)) %>% 
+            P = sum(P, na.rm = TRUE)) %>% 
   ungroup() %>% 
   mutate(Sector = "Artisanal")
 
-head(effort_new_Artisanal)
+# head(effort_new_Artisanal)
 
 # aggregate industrial 
 effort_new_Industrial<-effort_new %>% 
   filter(Sector == "I") %>% 
   group_by(fao_area, LME, eez_country_name, SAUP, Gear, FGroup, Year) %>% # add back fao_area - this aggregation might not be needed anymore but do it anyway .... 
   summarise(NomActive = sum(NomActive, na.rm = TRUE),
-            # EffActive = sum(EffActive, na.rm = TRUE), # no need for EffActive
             NV = sum(NV, na.rm = TRUE),
-            P = sum(P, na.rm = TRUE)) %>% # no need for GT
-  # GT = sum(GT, na.rm = TRUE)) %>% 
+            P = sum(P, na.rm = TRUE)) %>% 
   ungroup() %>% 
   mutate(Sector = "Industrial")
 
-head(effort_new_Industrial)
+# head(effort_new_Industrial)
 
-# put them back together
-colnames(effort_new_Artisanal)
-colnames(effort_new_Industrial)
-effort_tot<-rbind(effort_new_Industrial, effort_new_Artisanal)
-head(effort_tot)
+# # put them back together
+# colnames(as.data.table(effort_new_Artisanal))
+# colnames(as.data.table(effort_new_Industrial))
+# effort_tot<-rbind(effort_new_Industrial, effort_new_Artisanal)
+# head(effort_tot)
 
-nrow(effort_tot)
-nrow(effort_new_Artisanal)+nrow(effort_new_Industrial)
+# other option as the above is problematic/slow
+effort_tot<-effort_new_Industrial %>%
+  full_join(effort_new_Artisanal)
+
+class(effort_tot)
+nrow(as.data.frame(effort_tot)) # 21559109
+nrow(as.data.frame(effort_new_Artisanal))+nrow(as.data.frame(effort_new_Industrial)) # 21559109
 
 # effort to calculate spin-up
 effort_spinup<-effort_tot %>% 
   filter(Year >= 1950, Year <= 2017) 
-
 
 ## CHECK that numbers are as original data - OK they are the same 
 original<- effort_new %>% 
@@ -80,7 +107,7 @@ original<- effort_new %>%
 # 2 I      492743814508.
 # 3 UP      60126428597.
 
-sum(original[1,2], original[3,2])
+# sum(original[1,2], original[3,2])
 # [1] 389283753370
 
 check<-effort_tot %>% 
@@ -134,7 +161,7 @@ check<-effort_spinup %>%
 # # 2 Industrial 492743814468.
 
 # # what happens with fwrite and read_csv? It does not happen... SAME VALUES as original data
-library(data.table)
+effort_spinup<-as.data.table(effort_spinup) # this should not be needed. 
 fwrite(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv")
 # check2<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv")
 # 
