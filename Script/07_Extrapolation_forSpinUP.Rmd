@@ -22,7 +22,7 @@ The **METHOD** follows two steps:
 
 1. We extrapolated effort between 1850 and 1950 for each LME. We followed two paths depending on which data was available:   
 
-    a. If there were at least 10 years of catch data before 1950, **we used catch time series** to extrapolate effort. Firstly, we fit a GAM on the catch data and thus modeled catch as a spline-based smooth function of year, assuming a Gaussian distribution of data, a log link function, and a k argument of 6. The k argument sets the dimensionality of the smoothing matrix for the parameter year, with lower k resulting in smoother fitted spline. We used this model to predict catches between 1850 and 1950. Secondly, we looked at observed and predicted values and corrected for unexpected patterns. This meant trimming the catch data, adjusting the k argument, and re-fitting the GAM. Specifically, we identified the pick in the catch time series and excluded data collected afterwards. This was because we assumed a sigmoid-shaped catch time-series (smooth increase in catch until the pick is reached) and considering only the ascendant part of the curve resulted in a better statistical fit. In addition, we lowered k if, for example, predicted catches showed oscillations and/or resulted in high predicted effort (using the methods described below). Lastly, we calculated the rate of change of the predicted catches between 1951 and 1850 relative to the avarage catches between 1945 and 1955, and we applied this rate of change to the effort data to extend the effort time-series to 1850. When fitting the GAM, we considered data collected during WWI and WWII (1914-1918 and 1939-1945) to make use of all available information and to capture fluctuations in catches and effort.
+    a. If there were at least 10 years of catch data before 1950, **we used catch time series** to extrapolate effort. Firstly, we fit a GAM on the catch data and thus modeled catch as a spline-based smooth function of year, assuming a Gaussian distribution of data, a log link function, and a k argument of 6. The k argument sets the dimensionality of the smoothing matrix for the parameter year, with lower k resulting in smoother fitted spline. We used this model to predict catches between 1850 and 1950. Secondly, we looked at observed and predicted values and corrected for unexpected patterns. This meant trimming the catch data, adjusting the k argument, and re-fitting the GAM. Specifically, we identified the pick in the catch time series and excluded data collected afterwards. This was because we assumed a sigmoid-shaped catch time-series (smooth increase in catch until the pick is reached) and considering only the ascendant part of the curve resulted in a better statistical fit. In addition, we lowered k if, for example, predicted catches showed oscillations and/or resulted in high predicted effort (using the methods described below). Lastly, we calculated the rate of change of the predicted catches between 1951 and 1850 relative to the avarage catches between 1945 and 1955, and we applied this rate of change to the effort data to extend the effort time-series to 1850. When fitting the GAM, we considered catch data collected during World Wars if this data was available only from WWII onward (1939-1945) and remove it if this data was available from WWI onwards (i.e. includes both wars; 1914-1918 and 1939-1945). This was to make use of all available information when the historical time-series used to calculate spin-up was short (includede WWII only), but to exclude two consecutive “jumps” in the data causing oscillations in catch predictions and hence spin-up for effort, for some LMEs. This simple approach solved a couple of (small) issues that we would have if either always or never considering war data.
 
     b. If there were less than 10 years of catch data before 1950, **we used effort time series** from 1950 to 2017 to extrapolate effort. Similar to the approach used when we considered catch time-series, we fit a GAM to the effort data and modeled effort as a spline-based smooth function of year. THen we used the GAM model to predict effort between 1850 and 1950. Assumptions, data adjustments and arguments used in this process were the same as the one used to model the catch data.  
 
@@ -73,6 +73,7 @@ library(mgcv)
 library(gridExtra)
 
 select<-dplyr::select
+rename <-dplyr::rename
 
 source("Script/Helper_functions_fishingEffort.R")
 
@@ -96,25 +97,56 @@ my_theme<-theme_bw()+
 # effort<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017.csv")
 # consider new aggregation using EEZ instead of administrative country 
 # effort<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ.csv")
-effort<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv")
-effort<-effort[,-1]
+# effort<-effort[,-1] # when file was printed using write.csv in 05
+# WARNING - read_csv does not properly handle 64 bit numbers use fread BUT import as data.frame instead of data.table so that you don't have to transform in lazy_dt() and adjust all code below into full on dplyer mode but can use a combination of dplyer and basic R. - not very fast but OK 
+effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv", data.table = FALSE) 
+# head(effort)
+# effort<-lazy_dt(effort)
 
 # Remove Unknown_EEZ before calcualting spin-up. Yannick: used to make things working, should not include much effort and it refers to all the unknown fishing trips in the raw data. Also explored in end of 07_catch
+check<-effort %>% filter(FGroup == "Unknown_EEZ")
+unique(check$NomActive) 
+(sum(check$NomActive)/sum(effort$NomActive))*100 # 0.003229643
+
+check_by_LME<-effort %>% 
+  filter(FGroup == "Unknown_EEZ") %>% 
+  group_by(LME) %>% 
+  summarise(tot = sum(NomActive))
+
 effort<-effort %>% 
   filter(FGroup != "Unknown_EEZ")
 
 # catch<- read_csv("/rd/gem/private/users/yannickr/catch_histsoc_1869_2017_EEZ.csv")
-catch<- read_csv("/rd/gem/private/users/yannickr/catch_histsoc_1869_2017_EEZ_addFAO.csv")
+catch<- fread("/rd/gem/private/users/yannickr/catch_histsoc_1869_2017_EEZ_addFAO.csv", data.table = FALSE)
 
-# calculate catch as sum of reported and IUU, discards are generally not considered - as per Reg's comment (see 07_cacth_data.rmd) 
-catch$catch_tot<-catch$Reported + catch$IUU
+# no NAs, you can sum
+filter(catch, is.na(Reported))
+filter(catch, is.na(IUU))
+
+# catch<-lazy_dt(catch)
+
+# calculate catch as sum of reported and IUU, discards are generally not considered - as per Reg's comment (see 06_cacth_data.rmd) 
+# check<-catch
+# check$catch_tot<-check$Reported + check$IUU
+# head(check)
+# 
+# check<-check %>% 
+#   mutate(catch_tot = Reported + IUU)
+# head(check)
+
+# catch$catch_tot<-catch$Reported + catch$IUU # not working with lazy_dt, need to use dplyr code 
+
+catch<-catch %>%
+  mutate(catch_tot = Reported + IUU)
+head(catch) # OK 
+tail(catch) # OK
 
 # not sure about above as this might have referred to historical only... but see email conversation with Reg on discards 
 # catch$catch_tot<-catch$Reported + catch$IUU + catch$Discards
 
 ```
 
-## Extrapolate total effort by LME loop
+## Extrapolate total effort by LME loop *commented*
 
 ```{r extrapolate loop, echo = FALSE, fig.width=10, fig.height=7}
 
@@ -270,8 +302,11 @@ catch$catch_tot<-catch$Reported + catch$IUU
 #   plot(combined_plot_ref[[i]])
 # }
 # dev.off()
+```
 
-# final loop after DECISION ----
+## Tune kappa param
+
+```{r}
 
 # if catch: include war, ref 1945-1955
 # if effort - it does not matter
@@ -279,32 +314,18 @@ catch$catch_tot<-catch$Reported + catch$IUU
 # fix the k argument in GAM (based on war_param = "include" and reference = 1950)
 # toKeep<-sort(unique(effort$LME), na.last = TRUE)
 
-#### LME_FAO approach instead - now need a different code for LME that considers LME and FAO (and maybe LME and EEZ next?)
+### Adding for EcoOcean and DBPM (June 2023): split LME 0 into FAO regions. this will also result in a split of EEZ = High Seas into FAO regions  
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-# 1 rename LME to LME_original 
-# create an LME_1 and FAO_1 where LME == 0 new code under LME column. 
-# might need to tune kappa values for FAO regions in LME0 and will need to check plot at FAO region level as they will be sum of LME and FAO.  
+# 1 create new column if LME = 0 -> FAO area. 
+# 2 will need to tune kappa values for LME0_FAOarea, and will need to check plot at 3 levels FAO, LME, EEZ.  
 
 # for effort 
 effort<-effort %>% 
-  mutate(LME_FAO = ifelse(LME == 0, paste0("FAO_for_LME0_", fao_area), paste0("LME_", LME)))
+  mutate(LME_FAO = ifelse(LME == 0, paste0("LME0_FAO_", fao_area), paste0("LME_", LME)))
 
 # for catch 
 catch<-catch %>% 
-  mutate(LME_FAO = ifelse(LME == 0, paste0("FAO_for_LME0_", fao_area), paste0("LME_", LME)))
+  mutate(LME_FAO = ifelse(LME == 0, paste0("LME0_FAO_", fao_area), paste0("LME_", LME)))
 
 # new toKeep
 toKeep<-sort(unique(effort$LME_FAO), na.last = TRUE)
@@ -312,19 +333,8 @@ toKeep<-sort(unique(effort$LME_FAO), na.last = TRUE)
 df_kappa = 6 
 # with kappa = 3 bumps in effort disappear and we force the perfect logarithmic shape on the catch/effort data, but GAM in most cases does not fit the data particularly well (as does not follow bumps ...)
 
-###### DECISIOSN for FAO regions replacing LME 0 - see plot reconstructed effort printed at end of chunk. Alos check LMEs are the same as before. 
-# FAO 81,87,88 # should I adjust? also cutting the time series to highest values can be a bit strange for some LMEs ... but I guess this has already been discussed... 
-
-
-
-
-
-
-
-
-
-
-
+###### WARNING for FAO regions replacing LME 0 - see plot of reconstructed effort printed at end of chunk. Also check that LME trends are the same as before. 
+# FAO 81,87,88 # should I adjust? 
 
 if(df_kappa ==6){ # better capture trends 
   
@@ -385,6 +395,165 @@ if(df_kappa ==6){ # better capture trends
   
 }
 
+```
+
+## Other test done when splitting LME0 into FAO regions *commented*
+
+```{r}
+
+# ##### test 3 options 
+# 
+# # WARNING bugs in code - war data was removed and only if catch data was available for both wars (if year[[1]]<=1918 but not if year[[1]]<=1945). what to do next? Make decision = exclude and see if the impact is less? then justify that decision as it was an option? this is also happening on the regional effort data reconstruction, 
+# 
+# # lots of changes inside the function 
+# 
+# # no war data 
+# # war data 
+# # war data only for time series that start after WWI 
+# 
+# no_war<-list()
+# no_war_plot<-list()
+# 
+# war<-list()
+# war_plot<-list()
+# 
+# partial_war<-list()
+# partial_war_plot<-list()
+# 
+# tic()
+# 
+# # # now try kappa = 6 as def for all to see the effect of war before correcting for patterns
+# # kappa_values<-data.frame(lme = toKeep, kappa = 6) 
+# # kappa_values<-kappa_values %>% mutate(kappa = ifelse(lme == "LME_57", 5, 6))
+# # # 61-> 5, and 66-> 4 might give a problem
+# 
+# for(i in 1:length(toKeep)){
+#   
+#   # i = 12 
+#   print(toKeep[[i]])
+# 
+#   b<-effort_extrapolate(toKeep[[i]], kappa = kappa_values[i,2], war_param = "exclude", war_decision = "no-add", reference = "1945-1955")
+# 
+#   no_war[[i]]<-b$reconstructed_effort_LME
+#   no_war[[i]]$LME_FAO<-toKeep[i]
+#   names(no_war)[i]<-toKeep[i]
+# 
+#   # # check - OK for LME 12
+#   # check<-no_war[[i]] %>% filter(Type == "catch_tot", group == "Catch (tonnes)", !is.na(Value))
+#   # sort(unique(check$Year))
+# 
+#   no_war_plot[[i]]<-b$plot_reconstructed_effort_LME
+#   names(no_war_plot)[i]<-toKeep[i]
+# 
+#   c<-effort_extrapolate(toKeep[[i]], kappa = kappa_values[i,2], war_param = "include", war_decision = "no-add", reference = "1945-1955")
+# 
+#   war[[i]]<-c$reconstructed_effort_LME
+#   war[[i]]$LME_FAO<-toKeep[i]
+#   names(no_war)[i]<-toKeep[i]
+# 
+#   # # check - OK for LME 12
+#   # check<-war[[i]] %>% filter(Type == "catch_tot", group == "Catch (tonnes)", !is.na(Value))
+#   # sort(unique(check$Year))
+# 
+#   war_plot[[i]]<-c$plot_reconstructed_effort_LME
+#   names(no_war_plot)[i]<-toKeep[i]
+#   
+#   d<-effort_extrapolate(toKeep[[i]], kappa = kappa_values[i,2], war_param = "partially-exclude", war_decision = "no-add", reference = "1945-1955")
+# 
+#   partial_war[[i]]<-d$reconstructed_effort_LME
+#   partial_war[[i]]$LME_FAO<-toKeep[i]
+#   names(no_war)[i]<-toKeep[i]
+# 
+#   # # check - OK for LME 12 
+#   # check<-partial_war[[i]] %>% filter(Type == "catch_tot", group == "Catch (tonnes)", !is.na(Value))
+#   # sort(unique(check$Year))
+#   
+#   partial_war_plot[[i]]<-d$plot_reconstructed_effort_LME
+#   names(no_war_plot)[i]<-toKeep[i]
+#   
+# }
+# toc() 
+# 
+# pdf("Output/no_war_kappa6.pdf", height = 8, width = 6)
+# marrangeGrob(grobs = no_war_plot, nrow=2, ncol=1)
+# dev.off()
+# 
+# pdf("Output/war_kappa6.pdf", height = 8, width = 6)
+# marrangeGrob(grobs = war_plot, nrow=2, ncol=1)
+# dev.off()
+# 
+# pdf("Output/partial_war_kappa6_abs.pdf", height = 8, width = 6)
+# marrangeGrob(grobs = partial_war_plot, nrow=2, ncol=1)
+# dev.off()
+# 
+# no_war<-do.call(rbind.data.frame, no_war)
+# no_war$war<-"no_war"
+# war<-do.call(rbind.data.frame, war)
+# war$war<-"war"
+# partial_war<-do.call(rbind.data.frame, partial_war)
+# partial_war$war<-"partial_war"
+# 
+# all_options<-no_war %>%
+#   full_join(war) %>%
+#   full_join(partial_war)
+# 
+# save(all_options,no_war_plot,war_plot,partial_war_plot, file = "~/FishingEffort/Data/temp_07_all_options.RData")
+# 
+# # TO DO now: 
+# # 1 compare the 3 plots - is there any difference? YES 
+# 
+# # In "partial" and "war", effort values in wars are now squares on the plot as they should have been - this doe not effect dataset as the column is only used for plotting (CHECK BELOW when running phasae 2 and trimming the data)  
+# # partial vs war: FAO area not much effected
+# # 12,21,22,23,24,25,3,51,58,60,7,9
+# # no visible 19,2,47,49,5,50,52,6,66
+# # big effect 20, 59
+# 
+# # partial vs no war: FAO no visible differences. 
+# # 15,16,18,43,44,
+# # no visible: 11,13,14,39,4,40,42,45,46,48 
+# # big effect: 41
+# # in 16 (problem, the 10 years cut on the dataset is decided before removing war year so when removing them we fit the gam on catch data even if we have e.g. only 5 years of historical; 16 big effect), and in 41 (Something very wired happening - the shape of the GAM is very different).  
+# 
+# # 2 calculate % change in predictions among all plots 
+# load("~/FishingEffort/Data/temp_07_all_options.RData")
+# 
+# check<-all_options %>% 
+#   filter(Year < 1950, Type == "NomActive") %>% 
+#   select(-Considered)
+# 
+# check<-check %>% 
+#   group_by(LME_FAO, war) %>% 
+#   summarise(effort = sum(Value)) %>% 
+#   ungroup()
+#   
+# # percentage change of war and no_war, both compared to partial_war?? 
+# 
+# check2<-check %>%
+#   spread(war, effort) %>%
+#   mutate(
+#     per_change_partial_vs_no_war = ((no_war - partial_war)/abs(partial_war))*100,
+#     per_change_partial_vs_war = ((war - partial_war)/abs(partial_war))*100)
+# 
+# write.csv(check2, "Output/check_three_war_options.csv")
+# 
+# # 3 check kappa = 6 (before adjusting values for problematic LMEs). Did the decision you take ("partial") hold? YES 
+# # both WW -> LME 59,22,3,9 all improved without war 
+# # WWII only -> LME 41 and 43 improved with war (beside having more data to use)
+# 
+# # 4 check that partial == old plot for all LMEs: OK
+# # partial_war.pdf 
+# # reconstructed_effrot_forSpinup_totLME2_JeromeComment_kappa6_1841_fixedValues_kappaLME31_EEZ
+# 
+# #### WARNING one order of magnitude discrepancy between effort and effort reconstructed for non reconstructed values! NO all OK, one plot (summary_LME_NewVsOld...) is by sector while the other (reconstructed_effort_...) is all effort aggregated. though need to check if the final effort matches the original for unreconstructed values.  
+
+```
+
+## final loop after decision
+
+```{r}
+
+#### final decision (partial, no readd and decade as ref)
+
 reconstructed_effort_LME_war_ref<-list()
 plot_reconstructed_effort_LME_war_ref<-list()
 data_for_plot_for_FAOreport<-list()
@@ -395,19 +564,11 @@ for(i in 1:length(toKeep)){
   # i = 1
   print(toKeep[[i]])
 
-  # yes war data when fitting GAM do not re-add original data as otherwise you overwrite predictions, reference mean over a decade
-  # WARNING bugs in code - war data was removed and only if catch data was available for both wars (if year[[1]]<=1918 but not if year[[1]]<=1945). what to do next? Make decision = exclude and see if the impact is less? then justify that decision as it was an option? this is also happening on the regional effort data reconstruction too. 
+  # yes war data when fitting GAM, do not re-add original data as otherwise you overwrite predictions, reference mean over a decade
+
+  #### WARNING if the final option is the old version (with partial removal) of war years you need to either go back to the original code inside the function or to change arguments in function below. OK changed argument below 
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  b<-effort_extrapolate(toKeep[[i]], kappa = kappa_values[i,2], war_param = "include", war_decision = "no-add", reference = "1945-1955")
+  b<-effort_extrapolate(toKeep[[i]], kappa = kappa_values[i,2], war_param = "partially-exclude", war_decision = "no-add", reference = "1945-1955")
   
   # b$plot_reconstructed_effort_LME
 
@@ -580,10 +741,17 @@ plot_reconstructed_effort_LME_war_ref$`LME_64`<-plot_LME64
 # check empty LME and remove from the list - it should be none
 plot_reconstructed_effort_LME_war_ref<-plot_reconstructed_effort_LME_war_ref[lapply(plot_reconstructed_effort_LME_war_ref,length)>0]
 
+# if(df_kappa == 6){
+#   name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa6_1841_fixedValues_kappaLME31_EEZ_addFAO_warBugCorrected_negValueCorrected.pdf" # this version uses EEZ instead of administrative country # this version uses FAO regions instead of LME 0, this version (warBugCorrected) use the "war_param = "include" above and aftetr this has been correcte and it corrects for neg values on effort but that related to 1 LME0_FAO21 only and was not relevant 
+# }else if (df_kappa == 3){
+#   name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa3_1841_fixedValues_kappaLME31_EEZ_addFAO_warBugCorrected_negValueCorrected.pdf"
+# }
+
+### replace name above with something shorter...  
 if(df_kappa == 6){
-  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa6_1841_fixedValues_kappaLME31_EEZ_addFAO_warBugCorrected_negValueCorrected.pdf" # this version uses EEZ instead of administrative country # this version uses FAO regions instead of LME 0
+  name = "Output/reconstructed_effort_for_spinup_EEZ_addFAO.pdf" # this version uses EEZ instead of administrative country # this version uses FAO regions instead of LME 0
 }else if (df_kappa == 3){
-  name = "Output/reconstructed_effort_for_spinup_totLME2_JeromeComments_kappa3_1841_fixedValues_kappaLME31_EEZ_addFAO_warBugCorrected_negValueCorrected.pdf"
+  name = "Output/reconstructed_effort_for_spinup_kappa3_EEZ_addFAO.pdf"
 }
 
 # if total catch included discards - no need see comment above:  
@@ -608,82 +776,82 @@ save(reconstructed_effort_LME_war_ref, plot_reconstructed_effort_LME_war_ref, da
 
 ```
 
-## FAO report plots 
+## FAO report plots *commented*
 
 These have not been re-done after the correction as no-need and can be updated when working on the report's final version.  
 
 ```{r}
 
-# Plots for FAO report
-# rm(list=ls())
-# load("~/FishingEffort/Data/temp_effort.RData")
-
-# for plotting 
-# data_for_plot_for_FAOreport
-
-# consider 2 LME only? 
-# catch-based LME 50, 51, 47,39, 22,23, 14 (Patagonian shelf, better),15 (south Brazil shelf),16 (east Brazil shelf)
-# effort-based LME 26, 27 (canary current), 32 (Arabian Sea), 33, 34 (Bay of bengal), 36 (South China Sea), 37 ...
-# plot_reconstructed_effort_LME_war_ref[[15+1]]
-
-# names(data_for_plot_for_FAOreport)
-# SBZ<-data_for_plot_for_FAOreport[[14+1]]
-# CC<-data_for_plot_for_FAOreport[[27+1]]
-SBZ<-data_for_plot_for_FAOreport$LME_14
-CC<-data_for_plot_for_FAOreport$LME_27
-
-# FROM INSIDE FUNCION... 
-# now manul but can be loop if lots of changes... 
-
-# create data for annotation 
-yMax = max(filter(SBZ, group == "Effort (nominal, DkW)")$Value, na.rm = TRUE)
-
-ann_text <- data.frame(Year = c(1841+10,1961+15), Value = rep(yMax,2), lab = c("Transition","Experiment"), group = rep("Effort (nominal, DkW)", 2), Data = rep("Reconstructed values", 2), Considered = rep("Yes", 2))
-    
-plot_SBZ<-ggplot(data = SBZ, aes(x = Year, y = Value, group = Data, color = Data))+ #, shape=Considered)) +
-  ggtitle("Patagonian Shelf")+
-  facet_wrap(~group, scales = "free", nrow = 2)+
-  annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
-  annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
-  geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
-  geom_point(data = filter(SBZ, Data == "Reconstructed values"),size=1)+
-  geom_line(data = filter(SBZ, Data == "GAM predictions")) +
-  scale_color_manual(labels = c("Stat. model", "Estimates"), values = c("blue", "black"), drop = FALSE)+
-  scale_fill_chris()+
-  my_theme+
-  geom_vline(xintercept=1945, linetype="dashed", color = "red", size=0.5)+
-  geom_vline(xintercept=1955, linetype="dashed", color = "red", size=0.5)
-
-yMax = max(filter(CC, group == "Effort (nominal, DkW)")$Value, na.rm = TRUE)
-
-ann_text <- data.frame(Year = c(1841+10,1961+15), Value = rep(yMax,2), lab = c("Transition","Experiment"), group = rep("Effort (nominal, DkW)", 2), Data = rep("Reconstructed values", 2), Considered = rep("Yes", 2))
-   
-plot_CC<-ggplot(data = CC, aes(x = Year, y = Value, group = Data, color = Data))+ #, shape=Considered)) +
-  ggtitle("Canary Current")+
-  facet_wrap(~group, scales = "free", nrow = 2)+
-  annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
-  annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
-  geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
-  geom_point(data = filter(CC, Data == "Reconstructed values"),size=1)+
-  geom_line(data = filter(CC, Data == "GAM predictions")) +
-  scale_color_manual(labels = c("Stat. model", "Estimates"), values = c("blue", "black"), drop = FALSE)+
-  scale_fill_chris()+
-  my_theme+
-  geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)
-
-## END 
-
-plot_SBZ<-plot_SBZ+theme(legend.position = "none")
-
-# install.packages("patchwork")
-library(patchwork)
-# pdf("Output/LMEeffortFAOreport_EEZ.pdf", height = 5, width = 9)  # this version uses EEZ instead of administrative country
+# # Plots for FAO report
+# # rm(list=ls())
+# # load("~/FishingEffort/Data/temp_effort.RData")
+# 
+# # for plotting 
+# # data_for_plot_for_FAOreport
+# 
+# # consider 2 LME only? 
+# # catch-based LME 50, 51, 47,39, 22,23, 14 (Patagonian shelf, better),15 (south Brazil shelf),16 (east Brazil shelf)
+# # effort-based LME 26, 27 (canary current), 32 (Arabian Sea), 33, 34 (Bay of bengal), 36 (South China Sea), 37 ...
+# # plot_reconstructed_effort_LME_war_ref[[15+1]]
+# 
+# # names(data_for_plot_for_FAOreport)
+# # SBZ<-data_for_plot_for_FAOreport[[14+1]]
+# # CC<-data_for_plot_for_FAOreport[[27+1]]
+# SBZ<-data_for_plot_for_FAOreport$LME_14
+# CC<-data_for_plot_for_FAOreport$LME_27
+# 
+# # FROM INSIDE FUNCION... 
+# # now manul but can be loop if lots of changes... 
+# 
+# # create data for annotation 
+# yMax = max(filter(SBZ, group == "Effort (nominal, DkW)")$Value, na.rm = TRUE)
+# 
+# ann_text <- data.frame(Year = c(1841+10,1961+15), Value = rep(yMax,2), lab = c("Transition","Experiment"), group = rep("Effort (nominal, DkW)", 2), Data = rep("Reconstructed values", 2), Considered = rep("Yes", 2))
+#     
+# plot_SBZ<-ggplot(data = SBZ, aes(x = Year, y = Value, group = Data, color = Data))+ #, shape=Considered)) +
+#   ggtitle("Patagonian Shelf")+
+#   facet_wrap(~group, scales = "free", nrow = 2)+
+#   annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
+#   annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
+#   geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
+#   geom_point(data = filter(SBZ, Data == "Reconstructed values"),size=1)+
+#   geom_line(data = filter(SBZ, Data == "GAM predictions")) +
+#   scale_color_manual(labels = c("Stat. model", "Estimates"), values = c("blue", "black"), drop = FALSE)+
+#   scale_fill_chris()+
+#   my_theme+
+#   geom_vline(xintercept=1945, linetype="dashed", color = "red", size=0.5)+
+#   geom_vline(xintercept=1955, linetype="dashed", color = "red", size=0.5)
+# 
+# yMax = max(filter(CC, group == "Effort (nominal, DkW)")$Value, na.rm = TRUE)
+# 
+# ann_text <- data.frame(Year = c(1841+10,1961+15), Value = rep(yMax,2), lab = c("Transition","Experiment"), group = rep("Effort (nominal, DkW)", 2), Data = rep("Reconstructed values", 2), Considered = rep("Yes", 2))
+#    
+# plot_CC<-ggplot(data = CC, aes(x = Year, y = Value, group = Data, color = Data))+ #, shape=Considered)) +
+#   ggtitle("Canary Current")+
+#   facet_wrap(~group, scales = "free", nrow = 2)+
+#   annotate("rect",xmin=1841, xmax=1960, ymin=0, ymax=Inf, fill = "#b2e2e2", alpha = 0.4)+ # spin-up edf8fb
+#   annotate("rect",xmin=1961, xmax=2010, ymin=0, ymax=Inf, fill = "#238b45", alpha = 0.4)+ # projection 66c2a4
+#   geom_text(data = ann_text,label = ann_text$lab, color = "Black", size = 2)+
+#   geom_point(data = filter(CC, Data == "Reconstructed values"),size=1)+
+#   geom_line(data = filter(CC, Data == "GAM predictions")) +
+#   scale_color_manual(labels = c("Stat. model", "Estimates"), values = c("blue", "black"), drop = FALSE)+
+#   scale_fill_chris()+
+#   my_theme+
+#   geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)
+# 
+# ## END 
+# 
+# plot_SBZ<-plot_SBZ+theme(legend.position = "none")
+# 
+# # install.packages("patchwork")
+# library(patchwork)
+# # pdf("Output/LMEeffortFAOreport_EEZ.pdf", height = 5, width = 9)  # this version uses EEZ instead of administrative country
+# # plot_SBZ+plot_CC+plot_annotation(tag_levels = 'A')
+# # dev.off()
+# 
+# jpeg("Output/LMEeffortFAOreport_EEZ.jpg", width = 10, height = 5, units = 'in', res = 300, bg = "transparent")
 # plot_SBZ+plot_CC+plot_annotation(tag_levels = 'A')
 # dev.off()
-
-jpeg("Output/LMEeffortFAOreport_EEZ.jpg", width = 10, height = 5, units = 'in', res = 300, bg = "transparent")
-plot_SBZ+plot_CC+plot_annotation(tag_levels = 'A')
-dev.off()
 
 ```
 

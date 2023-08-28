@@ -250,7 +250,7 @@ saup<-read_csv("/rd/gem/private/users/yannickr/SAUPcode_to_Country.csv")
 
 saup<-saup %>% 
   dplyr::rename(SAUP = SAUP_Country_Nbr,
-                FCountryName = Country) %>% 
+                FCountryName = Country) %>% # NOTE, this column seems to be in the catche data 
   select(-Region)
 
 # this shoudl be automatic - but do it anyway 
@@ -349,7 +349,7 @@ fao_check %>% summarise(sum(a)) # 6940447558.
 
 ```{r}
 
-final_catch <- catch2
+final_catch <- as.data.table(catch2) # this should not be needed but also done on effort. fwrite takes data.table and data.frame for sure. 
 
 sort(unique(as.data.frame(final_catch)$Year), na.last = TRUE)
 # fwrite(x = as.data.frame(final_catch), file.path(yannick_dir, "catch_histsoc_1869_2017.csv"))
