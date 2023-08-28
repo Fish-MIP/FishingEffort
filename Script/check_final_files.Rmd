@@ -51,14 +51,14 @@ final_effort<-fread("/rd/gem/private/users/yannickr/DKRZ_EffortFiles/effort_isim
 # check NAs for all spatial groupings 
 sort(unique(final_effort$eez_country_name), na.last = FALSE) # No NAs, but high seas which is OK
 sort(unique(final_effort$LME), na.last = FALSE) # No NAs but LME 0 which is OK 
-sort(unique(final_effort$fao_area), na.last = FALSE) # there is an NA which is not good. CORRECTED no NAs for Fao region neither!  
+sort(unique(final_effort$fao_area), na.last = FALSE) #no NAs for Fao region   
 # trial<-final_effort %>% 
 #   filter(is.na(fao_area))
 # unique(trial$eez_country_name) # "GuineaBissau"
 # unique(trial$LME) # 27 
 # nrow(trial)
 
-# check hierarchy - that sum of effort is the same across FAO, LME, and EEZ. NOT SURE this is the right check ... maybe do plot of trends? 
+# check hierarchy - that sum of effort is the same across FAO, LME, and EEZ. 
 LME_check<-reconstructed_effort_ref_all %>% 
   group_by(LME) %>% 
   summarise(e = sum(NomActive)) %>% 
@@ -295,7 +295,6 @@ check # 881999081700. DIFFERENCE 3 more effort here?
 # 881999081540 NEW
 881999081700 - 881999081540 # 160 difference - still because the old files were printed using write.csv(). though differnce here is 160 instead of ~21 as per latest dataset.
 
-
 # compare latest with previous previous version
 dkrz_effort_0<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1841_2017.csv", data.table = FALSE)
 check<-dkrz_effort_0 %>% 
@@ -332,7 +331,6 @@ all<-check1 %>%
 58038967173/58038967111 # I guess this is saying that there is no difference between these numbers... 
 
 ### CHECK DIFFERENCE IN PROJECTIONS BETWEEN LATEST AND PREVIOUS DATASET USED BY MODELLERS. 
-# FAO region 88 will cause differences in addition to changes in projections due to the writing file issue? 
 
 check<-dkrz_effort_0 %>% 
   filter(Year <1950) %>% 
@@ -354,7 +352,7 @@ check
 115063612497- 115045639969 # = 17972528
 (17972528/115063612497)*100 # 0.01561965% of global effort
 
-# could this be exclusively due to LME0_FAO88? if so, should this be more evident in recent projections? or not because the whole past has been reconstructed for these sets of grid cells? 
+# could this be exclusively due to LME0_FAO88? 
 head(reconstructed_effort_ref_all)
 # add back LME_FAO column 
 reconstructed_effort_ref_all <- reconstructed_effort_ref_all %>% 
@@ -385,10 +383,10 @@ all<-check1 %>%
 
 View(all)
 
-# is LME0 where all the problem is as was re-calcaulted? 
+# LME0 is where the discrepancy is because LME0 was re-calculated given new grouping (FAO area)  
 all[1,]
 all[2,]
-1390634384-1372661619 # 17972765 YES IT IS. but it is not linked to fao88 so not sure what the problem is... 
+1390634384-1372661619 # 17972765 YES IT IS. 
 
 # plot LME0 
 LME0_effort0<-dkrz_effort_0 %>% filter(LME == 0) %>%
@@ -691,10 +689,8 @@ check2
 
 
 # check range of values: 
-# WARNING negative values.... 
-min(reconstructed_effort_ref_all$NomActive) # -1.186503e-09 NEGATIVE! # CORRECTED - now 0
+min(reconstructed_effort_ref_all$NomActive) 
 # check_negative<-filter(reconstructed_effort_ref_all, NomActive<0)
-# max(check_negative$Year) # Only for reconstruction... and only for LME 0 and FAO 21 so need to check that plot 
 # unique(check_negative[,c("Year","eez_country_name", "LME", "fao_area")]) 
 # max(reconstructed_effort_ref_all$NomActive) # 233495502
 
@@ -804,7 +800,7 @@ fao_check %>% summarise(sum(a)) # 5332567792
 ## all good 
 
 # plot by fao, lme, eez - cannot check with original as no such grouping there
-# use both catch2 and catch08 or just catch 08 as you've checked thye match in total effort... 
+# use both catch2 and catch08 or just catch 08 as you've checked they match in total catches 
 
 
 ```
