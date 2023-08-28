@@ -83,7 +83,7 @@ nrow(catch) # 1827877
 
 ```{r}
 
-### NOTE - if the aim was to ass SAUP this had already been done in 06, but leave as it is. 
+### NOTE - if the aim was to add SAUP this had already been done in 06, but leave as it is. 
 
 saup<-read_csv(file.path(yannick_dir_new, "SAUPcode_to_Country.csv"))
 
@@ -255,7 +255,7 @@ nrow(catch3)
 dkrz<-"/rd/gem/private/users/yannickr/DKRZ_EffortFiles/"
 fwrite(x = effort3, file.path(dkrz, "effort_isimip3a_histsoc_1841_2010.csv")) # new version with FAO area and new name according to matthias 
 # fwrite(x = effort3, file.path(dkrz, "effort_histsoc_1841_2010_revised.csv")) # needs to be at 1841 because it needs to match the climate inputs # NOTE this has been renamed _adminCountry via terminal if (in previous version) you used the administrative country and a new file with the original name has been created when you used EEZ instead of admin country  
-## NOTE - this last version (effort_histsoc_1841_2010_revised.csv) has now be named _revised to send to Villy for checking. Same for catch. it has also been uploaded to DKRZ and named "effort_histsoc_1841_2010.csv" - i.e. without "revised". Same for catch. 
+## (OLD - not valid) NOTE - this last version (effort_histsoc_1841_2010_revised.csv) has now be named _revised to send to Villy for checking. Same for catch. it has also been uploaded to DKRZ and named "effort_histsoc_1841_2010.csv" - i.e. without "revised". Same for catch. 
 
 # fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1850_2010.csv")) # NOTE this has been renamed _adminCountry as EEZ used was the administrative country - no new file created as no need 
 # fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1850_2010_discards.csv")) # no need for this - see comment on discards in 06 and 07 # to create this it was also considered the administrative country
@@ -280,5 +280,14 @@ fwrite(x = catch3, file.path(dkrz, "catch-validation_isimip3a_histsoc_1850_2004.
 # catch file in DKRZ on 01/08/2022 (last printed from this script adn last uploaded on DKRZ. Difference from the 28th version is only that I removed SAUP where catches were NAs and that got there because of a full_join instead of a left_join - see line 104)
 
 # email to Fishmip community from Julia re updated and final data 29/07/2022 night and 30/07/2022 
+
+# latest updated and uploads to DKRZ
+# 26th July 2023 - added catch and effort file on DKRZ (home folder) to be moved to socioeconomic folder, with LME0/high seas divided into FAO areas  
+
+## alos uploaded to /rd/gem/public/fishmip/ISIMIP3a/InputData/fishing/histsoc
+# cp /rd/gem/private/users/yannickr/DKRZ_EffortFiles/effort_isimip3a_histsoc_1841_2010.csv /rd/gem/public/fishmip/ISIMIP3a/InputData/fishing/histsoc/
+
+# cp /rd/gem/private/users/yannickr/DKRZ_EffortFiles/catch-validation_isimip3a_histsoc_1850_2004.csv /rd/gem/public/fishmip/ISIMIP3a/InputData/fishing/histsoc/
+
 
 ```

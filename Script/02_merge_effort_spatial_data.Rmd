@@ -50,18 +50,13 @@ nrow(EEZ_tot) # 193
 
 (take_first <- EEZ_disputes[!duplicated(EEZ_disputes[c("Lon", "Lat")]),])
 
-head(EEZ) # CN - might need to change aggregation levels - use the FAOname as the  Admin_Country aggregates EEZ that are under the same administrative country. 
+head(EEZ) # CN - need to change aggregation levels - use the FAOname as the  Admin_Country aggregates EEZ that are under the same administrative country. 
 unique(EEZ[,c("CNumber", "FAOname", "A_Code", "Admin_Country")])
-# View(unique(EEZ[,c("CNumber", "FAOname")])) # unique CNubmer and FAOName
-# View(unique(EEZ[,c("A_Code", "FAOname")])) # repeated A_Code for some FAOname (I guess under the same Admin_country)
 
 (EEZ_adj <- bind_rows(EEZ %>% 
             filter(DISPUTED == FALSE),
           take_first) %>% 
-  # select(Lat, Lon, A_Code, Admin_Country) %>% # CN changed - we need the EEZ and not the administrative country
   select(Lat, Lon, CNumber, FAOname) %>%
-  # rename(eez_country_code = A_Code,
-        # eez_country_name = Admin_Country) %>% # CN same as above
   rename(eez_country_code = CNumber,
          eez_country_name = FAOname) %>%
    distinct())
@@ -73,7 +68,6 @@ EEZ_adj <- lazy_dt(EEZ_adj)
 
 #check EEZ data - EEZs look ok
 
-# EEZ_xyz <- EEZ_adj %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=eez_country_code) %>%  select(x,y,z)  # CN adjust as per above 
 EEZ_xyz <- EEZ_adj %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=eez_country_code) %>%  select(x,y,z) 
 EEZ_raster <- raster::rasterFromXYZ(EEZ_xyz)
 plot(EEZ_raster)
@@ -106,7 +100,7 @@ FAO_regions <- lazy_dt(FAO_regions)
 
 FAO_xyz <- FAO_regions %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=fao_area) %>%  select(x,y,z) 
 FAO_raster <- raster::rasterFromXYZ(FAO_xyz)
-plot(FAO_raster) # CN NOTE - land is a mix of NAs and the actual FAO region. it makes sense by looking at the map from website though land there is overplayed and here not important as no data will be there. 
+plot(FAO_raster) 
 
 # for eez: Looking at the CNumber - this appears the be the iso3n code for the country. This is often the name the same as the admin country but is different when the land masses are territories of other countries
 
@@ -126,7 +120,7 @@ missing_fao_eez <-
   filter(is.na(fao_area)) %>% #29831 where FAO areas are NA but LME are not
   filter(is.na(eez_country_name)) #29830 where EEZ are NA but LME are not - this does not change depending on order. So there is one cell where the is LME data and EEZ data but not FAO area data
 
-# Camilla's CHECKS - IMPORTANT 
+# Camilla's CHECKS 
 # the above one grid cell needs to be fixed otherwise it is carried out in final effort dataset and giving an additional FAO region called 'NA', where LME = 0 and EEZ = GuineaBissau
 # by looking at map, this is FAO 34
 all_spatial_layers %>% 
@@ -186,8 +180,7 @@ FAO_regions %>% filter(Lon == -14.75, Lat == 12.25)
 # # 56 could be? 
 # # 18 yes ... 
 # 
-# ## Could this be problematic - e.g. coastal effort considered for LMEs and not EEZs? Asked Julia - only a few LME/EEZ at high lat affected. also these are the files used to work with catch and effort by Reg and Yannick and here we are using these files for consistency. 
-# # should we use the FAO_LME and FAO_EEZ interaction masks provided by Denisse (+FAO regions column) instead of LME and EEZ columns? No, these were created for inputs only + see reason above. 
+# ## only a few LME/EEZ at high lat affected. also these are the files used to work with catch and effort by Reg and Yannick and here we are using these files for consistency. 
 
 ```
 

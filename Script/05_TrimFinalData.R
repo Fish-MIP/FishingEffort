@@ -181,8 +181,6 @@ fwrite(effort_spinup, "/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_E
 # # 1 Artisanal  389283753417.
 # # 2 Industrial 492743814473.
 
-
-
 #### NOTE RUN FOR NEW VERSIONS OF _addFAO ---------- 
 ## NOTE: the below is not necessary anymore (besides checking) as the final effort data will include spin-up
 # all data on DKRZ are replaced with spin-up version but better to keep this version as well.  

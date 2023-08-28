@@ -71,19 +71,6 @@ decision<-reconstructed_effort_LME_war_ref
 
 # First loop ----
 
-#### WRNING, again, this is where it can get tricky - should you run this at LME level as before LME0 issue or using LME_FAO column? 
-
-
-
-
-
-
-
-
-
-
-
-
 # toKeep<-sort(unique(effort$LME))
 toKeep<-sort(unique(effort$LME_FAO), na.last = TRUE)
 names(decision)
@@ -94,22 +81,12 @@ plot_reconstructed_effort_ref<-list()
 tic()
 for(i in 1:length(decision)){
 
-  # i = 1 
-  # WARNING problems with FAO_for_LME0_88 # i = 17 # possibly fixed 
-  # WARNING problems with FAO_for_LME0_21 # i =1 # fixed 
-  
-  
-  
-  
-  
-  
-  
   print(toKeep[[i]])
   
   # recent_effort<-filter(effort, LME == toKeep [[i]])
   recent_effort<-filter(effort, LME_FAO == toKeep [[i]])
   
-  # WARNING - need to check that LMEs are matching across datasets and with toKeep - YES matching 
+  # need to check that LMEs are matching across datasets and with toKeep - YES matching 
   # a<-effort_spread(decision[[i]], recent_effort, toKeep[[i]], reference = "1950")
   # 
   # reconstructed_effort[[i]] = a$final_df
@@ -128,7 +105,7 @@ for(i in 1:length(decision)){
 toc() # 1019.363/60 = 16 min
 
 # compare scenarios and decide ----
-# WARNING - this decision was taken before splitting LME 0 into FAO regions but the output at LME level should be the same and hence the decision should hold. 
+# this decision was taken before splitting LME 0 into FAO regions but the output at LME level should be the same and hence the decision should hold. 
 
 # combined_plot<-list()
 # 

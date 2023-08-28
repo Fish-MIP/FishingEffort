@@ -56,9 +56,6 @@ pdf("Output/Summary_total_NewVsOldData_EEZ.pdf", width = 10, height=7)
 plot_effort_tot
 dev.off()
 
-## WARNINIG - effort from original and old files match but not from new file! 
-## CORRECTED now OK 
-
 ## compare with original gridded files ----
 # back to original data (e.g. mapped_1950_I_100.csv) for more exploration
 # check that the sum of effort for 1 year, 1 sector, across all countries (SAUP) 
@@ -143,11 +140,6 @@ for(i in 1:length(effort_list)){
 pdf("Output/Summary_LME_NewVsOldData_corrected_EEZ.pdf", width = 10, height=5)
 plot_effort
 dev.off()
-
-# WARNING 1: same LMEs show higher values in new effort
-# WARNING 2: some LMEs show only one trend - is this becasue of perfect matching? YES
-# WARNING 1 - pick an LME showing different trends and further check 
-# CORRECTED all OK now - so not explored with latest version of the effort file (e.g _addFAO)
 
 keep <- 51 # worst are 47/51/2 
 

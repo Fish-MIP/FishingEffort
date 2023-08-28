@@ -71,12 +71,7 @@ join_effort_data <- function(this_file_name){
 effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   
   # # # trial
-  # # toKeep=66
-  # toKeep = "FAO_for_LME0_88" # fix problem with effort not been available before 2004
-  # toKeep = "LME_24" # fix problem with war years being removed when they should have not for bug in code ...
-  # toKeep = "FAO_for_LME0_21" # fix negative effort values
-  # toKeep = "LME_12" # LME 12 is cacth based and LME 1 is effort based (if you need testing )
-  # toKeep = "LME_11" # 
+  # toKeep=66
   # kappa=6
   # war_param = "exclude"
   # war_decision = "no-add"
@@ -124,16 +119,9 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
       filter(Year %in% c(1914:1918, 1939:1945)) 
     warToRemove<-war$Year
     
-  ###### WANING - does this make sense? they could be both true - what happens then? 
+  ###### does this make sense? they could be both true - what happens then? 
   # It should be OK as the first option is considered and only if not true the second one is evaluated.    
-  # tested with LME 2 but check more 
-    
-    
-    
-    
-    
-    
-    
+  # tested with LME 2
     
   }else if (year[[1]]<=1945){  
     war<- df %>% 
@@ -141,7 +129,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     warToRemove<-war$Year
   }
   
-  # # WARNING - this argument to if() was different before adding the () 
+  # # this argument to if() was different before adding the () 
   # # this means we excluded catches during war years only if catch data extended to before 1918.
   # and did not re-added them back before calculating the rate of change in effort (code below) as  
   # war_param == "include" & war_decision == "no-add"
@@ -152,20 +140,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   # year<=1918 | year<=1945 & war_param == "exclude"
   # (year<=1918 | year<=1945) & war_param == "exclude"
   # re-run code and check LMEs that have been influenced - OK CORRECTED and decision taken on best approach
-
   
-  
-  
-  
-  
-  
-  #### WARNING why not just war_param == "exclude" ??? and a second if(). 
-  # also check how the option war_decision = "no-add" would fit in here if you are using war_param == "exclude"
-  # if((year[[1]]<=1918 | year[[1]]<=1945) & war_param == "exclude"){
-  #   df<-filter(df, !Year %in% warToRemove)
-  # }
-  
-  # re-write and test 
   # option 1 no war
   if((year[[1]]<=1918 | year[[1]]<=1945) & war_param == "exclude"){ # OR if warToRemove exist? 
     df<-filter(df, !Year %in% warToRemove)
@@ -177,8 +152,6 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     df<-df
   }
 
-  
-  
   # fit the gam 
   gam_model<-gam(eval(as.name(var)) ~ s(Year, k=kappa), data=df, family=gaussian(link="log"))
   df$gam<-round(predict(gam_model,newdata = df,type='response'))
@@ -214,19 +187,6 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
       ref<-as.numeric(mean(ref$pred, na.rm = TRUE))
     }
     
-    # re-add war years for calculation of effort (if these were available). Add them to pred, because pred <1950 is what you are basing your calculation of effort on.
-    # if(war_param == "exclude" & war_decision == "re-add"){
-    ## WARNING adjust given the above 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     if((war_param == "exclude" & war_decision == "re-add") | (war_param == "partially-exclude" & year[[1]]<=1914 & war_decision == "re-add")){ 
     ### this should work but all tests are war_decision == "no-add" so not very relevant 
       if (year[[1]]<=1914 | year[[1]]<=1939){
@@ -258,9 +218,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     # as the new value is too small compared to the ref values 
     # but sometimes when I calculate this in the dataframe above 
     # I get -2.91e-11 and I don't know why 
-    # (probably the more precise value as -16 + 5 = -11? and becasue rate is not exactly -1)
     # it does not happen when I delete the 100* and the /100 ... 
-    
     
     # 2. extend effort back using rate of change in catch 
     
@@ -284,29 +242,10 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
         Year < 1950 ~ ref + (rate)*ref))
   
     # # check for negative values in effort 
-    # effort_reconstruct[order(effort_reconstruct$Year),]
-    
-    # NOTE - now I get a different result with the same calculations because ref relates to effort and not catch 
-    # Year NomActive catch_tot     pred  rate Trial_back NomActi…¹
-    # <dbl>     <dbl>     <dbl>    <dbl> <dbl>      <dbl>     <dbl>
-    # 1  1861        NA   NA      2.22e-16  -100  -2.91e-11  -7.45e-9
-    # 2  1862        NA   NA      2.22e-16  -100  -2.91e-11  -7.45e-9
-    # 3  1863        NA   NA      2.22e-16  -100  -2.91e-11  -7.45e-9
-    # 4  1864        NA   NA      2.22e-16  -100  -2.91e-11  -7.45e-9
-    
-    # when I delete 100* and /100 I get 0s instead of the very small negative values 
     # but just in case transform negative values into 0s below 
-    # done also below when effort is calualted useing effort and not cacth, juts in case
+    # done also below when effort is calculated useing effort and not cacth, juts in case
     effort_reconstruct<-effort_reconstruct %>% 
       mutate(NomActive_catch_based = ifelse(NomActive_catch_based<0, 0, NomActive_catch_based))
-    
-    
-    
-    
-    
-    
-    
-    
     
     # # check
     # ggplot(data = effort_reconstruct, aes(x = Year, y = NomActive_catch_based)) +
@@ -346,22 +285,10 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   
   # FINAL STEPS ----
 
-  # WARNING this is not necessary as the catch data that comes out of this function is only used for plotting 
+  # this is not necessary as the catch data that comes out of this function is only used for plotting 
   # (and it makes sense to not plot data that were excluded)
   # the catch data used for model calibration is produced in 06 
   # # 1. add missing data - 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   
   # # add back war time in raw catches - only if you had excluded them above
   # # WARNING - CHECK THIS but currently not used as war_param = "include"
@@ -390,17 +317,8 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   # }
   
   # add back data after pick in both catches and effort
-  # WARNING - not sure this is necessary for catches given the above but OK to do 
+  # not sure this is necessary for catches given the above but OK to do 
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
   # this is done in original catches if catches was used for prediction or effort if effort was used for predictions. 
   if (dim(toAddBack)[1]!=0){
     df<-df %>% 
@@ -428,7 +346,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   final_df<-final_df %>% 
     full_join(add_df)
   
-  # WARNING - check Warning with gather, use pivot_longer instead
+  # check Warning with gather, use pivot_longer instead
   final_df<-final_df %>% 
     pivot_longer(cols = -Year, names_to = "Type", values_to = "Value") 
   
@@ -442,7 +360,7 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
     
   }else{
     
-    ## WARNING this had wrong parenthesis () instaed of {} - did this have an effect? NO, See test below. 
+    ## this had wrong parenthesis () instaed of {} - did this have an effect? NO, See test below. 
 
     final_df<-final_df %>% 
       mutate(group = ifelse(Type == "catch_tot", "Catch (tonnes)", "Effort (nominal, DkW)") )
@@ -486,21 +404,8 @@ effort_extrapolate<-function(toKeep, kappa, war_param, war_decision, reference){
   # 3  1950 catch_tot   280618. Catch (tonnes)       
   
   # highlight data that was not used in GAM 
-  # WARNING - changed given the 3 options above but 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+  # changed given the 3 options above but 
+
   # if(dim(filter(catch_all, Year <1950))[1] >=10 & war_param == "exclude" & war_decision != "re-add") { 
   if((dim(filter(catch_all, Year <1950))[1] >=10 & war_param == "exclude" & war_decision != "re-add")|
      (dim(filter(catch_all, Year <1950))[1] >=10 & war_param == "partially-exclude" & war_decision != "re-add" & year[[1]]<=1914)) { 
@@ -603,39 +508,11 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
       filter(Year >= 1974, Year <=1984)
   }
   
-  
-  
-  
-  
-  
-  
-  # sort(unique(historical_effort$Year))
-  # sort(unique(recent_effort$Year))
-  
   # this is done for each LME (LME in grouping below is not necessary). 
   # recent_effort is effort from 1950-2017 and recent_effortB is effort from 1950-1960 (reference years) including all groups
   # NOTE from recent_effort you consider CONTRIBUTIONS by groups 
   # first you calculate the average effort by group 1950-1960 (reference effort)
   # then you calculate the effort contribution of each group. at the LME level this sums to 1 
-  
-  
-  ####### WARNING this is where it get tricky with the new organisation of LME 0 if you are considering EEZ and FAO area only. 
-  # What happens with area that is outside EEZ and LME0+FAO classification and withing an LME? 
-  # should you check that the sum of effort when using different grouping is always the same??? 
-  # of course need to group_by fao_area too below!
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   
   recent_effortB<-recent_effortB %>% 
     group_by(eez_country_name,SAUP,Gear,FGroup,Sector,LME,fao_area,LME_FAO) %>% 
@@ -670,15 +547,6 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
     toExpend<-as_tibble(toExpend) 
   }
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
   # SECOND - get effort value by year for 1841-1950
   # NOTE from historical_effort you consider EFFORT VALUES by year withing LME 
   # not much done here, just data wrangling to get year, effort dataset
@@ -696,7 +564,7 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
     mutate(NomActive = NomActive_pred*contribution) %>% 
     select(-NomActive_pred, -contribution)
   
-  ### WARNING adjust FAO_for_LME0_88
+  ### adjust FAO_for_LME0_88
   if(toKeep == "LME0_FAO88"){
     final_df<-filter(historical_effort, Year <1974) %>% # this are the only year that we need to reconstruct and merge with recent_effort
       full_join(toExpend) %>% 
@@ -704,16 +572,6 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
       select(-NomActive_pred, -contribution)
   }
     
-    
-    
-    
-    
-    
-    
-    
-  
-  
-  
   # # check - ok - the sum of effort at the LME level matches ....
   # final_df %>% filter(Year ==1841) %>% mutate(a = sum(NomActive))
   # decision[[1]] %>% filter(Year ==1841) # compare a with original data
@@ -758,8 +616,6 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
   # create data for annotation 
   yMax = max(data_plot$NomActive, na.rm = TRUE)
   
-  # ann_text <- data.frame(Year = c(1841+10,1861+15,1961+15), NomActive = rep(yMax,3), lab = c("Spin-up","Transition","Experiment"), Gear = rep(unique(data_plot$Gear)[1], 3))
-  
   ann_text <- data.frame(Year = c(1841+10,1961+15), NomActive = rep(yMax,2), lab = c("Transition","Experiment"), Gear = rep(unique(data_plot$Gear)[1], 2))
   
   plot<-ggplot(data = data_plot, aes(x = Year, y = NomActive, group = Gear, color = Gear)) +
@@ -776,7 +632,7 @@ effort_spread<-function(historical_effort, recent_effort, toKeep, reference){
       geom_vline(xintercept=1950, linetype="dashed", color = "red", size=0.5)
   }else{
     
-    ### WARNING adjust FAO_for_LME0_88
+    ### adjust FAO_for_LME0_88
     
     if(toKeep == "LME0_FAO88"){
       plot<-plot+

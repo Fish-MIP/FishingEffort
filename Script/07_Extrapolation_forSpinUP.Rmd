@@ -318,7 +318,6 @@ tail(catch) # OK
 
 # 1 create new column if LME = 0 -> FAO area. 
 # 2 will need to tune kappa values for LME0_FAOarea, and will need to check plot at 3 levels FAO, LME, EEZ.  
-
 # for effort 
 effort<-effort %>% 
   mutate(LME_FAO = ifelse(LME == 0, paste0("LME0_FAO_", fao_area), paste0("LME_", LME)))
@@ -332,9 +331,6 @@ toKeep<-sort(unique(effort$LME_FAO), na.last = TRUE)
 
 df_kappa = 6 
 # with kappa = 3 bumps in effort disappear and we force the perfect logarithmic shape on the catch/effort data, but GAM in most cases does not fit the data particularly well (as does not follow bumps ...)
-
-###### WARNING for FAO regions replacing LME 0 - see plot of reconstructed effort printed at end of chunk. Also check that LME trends are the same as before. 
-# FAO 81,87,88 # should I adjust? 
 
 if(df_kappa ==6){ # better capture trends 
   
@@ -563,15 +559,9 @@ for(i in 1:length(toKeep)){
   
   # i = 1
   print(toKeep[[i]])
-
-  # yes war data when fitting GAM, do not re-add original data as otherwise you overwrite predictions, reference mean over a decade
-
-  #### WARNING if the final option is the old version (with partial removal) of war years you need to either go back to the original code inside the function or to change arguments in function below. OK changed argument below 
   
   b<-effort_extrapolate(toKeep[[i]], kappa = kappa_values[i,2], war_param = "partially-exclude", war_decision = "no-add", reference = "1945-1955")
   
-  # b$plot_reconstructed_effort_LME
-
   reconstructed_effort_LME_war_ref[[i]]<-b$reconstructed_effort_LME
   names(reconstructed_effort_LME_war_ref)[i]<-toKeep[i]
 

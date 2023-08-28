@@ -176,7 +176,7 @@ missing_fao_eez <-
   filter(is.na(fao_area)) %>% #29831 where FAO areas are NA but LME are not
   filter(is.na(eez_country_name)) #29830 where EEZ are NA but LME are not - this does not change depending on order. So there is one cell where the is LME data and EEZ data but not FAO area data
 
-# Camilla's CHECKS - IMPORTANT 
+# Camilla's CHECKS  
 # the above one grid cell needs to be fixed otherwise it is carried out in final effort dataset and giving an additional FAO region called 'NA', where LME = 0 and EEZ = GuineaBissau
 # by looking at map, this is FAO 34
 all_spatial_layers %>% 
@@ -191,17 +191,6 @@ FAO_regions %>% filter(Lon == -14.75, Lat == 12.25)
 # Run function to aggregate data 
 
 ```{r}
-
-# unique(sort(as.data.table(catch)$Lat))
-# unique(sort(as.data.table(catch)$Lon))
-# 
-# unique(sort(as.data.table(LMEs)$Lat))
-# unique(sort(as.data.table(LMEs)$Lon))
-# 
-# unique(sort(as.data.table(EEZ_adj)$Lat))
-# unique(sort(as.data.table(EEZ_adj)$Lon))
-
-# head(catch)
 
 tic()
 catch2 <- catch %>%
@@ -255,7 +244,6 @@ saup<-saup %>%
 
 # this shoudl be automatic - but do it anyway 
 catch2<-lazy_dt(catch2)
-
 
 catch2<-catch2 %>% 
   dplyr::rename(SAUP = CNumber) %>% 
