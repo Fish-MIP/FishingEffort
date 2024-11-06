@@ -1,0 +1,106 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Libraries
+
+```{r}
+
+rm(list= ls())
+
+library(tidyverse)
+library(sf)
+library(raster)
+library(fasterize)
+library(countrycode)
+library(ncdf4)
+library(terra)
+
+select <- dplyr::select
+
+home_dir <- file.path("/home/ubuntu/gem") # change this to the correct home dir... will most likely be /rd/gem
+
+yannick_dir <- file.path(home_dir, "private/users/yannickr")
+model_region_dir <- file.path(home_dir, "private/fishmip_inputs/ISIMIP3b/fishmip_regions") # regional shapefile mask from Denisse: https://github.com/Fish-MIP/FishMIP_regions/tree/main/scripts
+
+```
+
+# Load shapefile 
+
+```{r}
+
+base_raster <- rast(res = 0.5)
+
+# Use eez file as base to see if that works
+eez_file <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv")) %>% select(Lon, Lat, A_Code)
+unique(eez_file$Lon)
+eez_base_raster <- rast(eez_file, type = "xyz")
+
+# model raster 
+# check regions and names 
+# nc_data <- nc_open(file.path(model_region_dir, "fishMIP_regional_mask_ISIMIP3.nc"))
+# print(nc_data)
+
+shp_data <- st_read(file.path(model_region_dir, "FishMIP_regional_models/"))
+
+unique(shp_data$region)
+
+test <- shp_data %>% st_drop_geometry()
+
+test_old <- readRDS(file =  file.path(yannick_dir, "Cells_LatLon_model_regions.rds"))
+old_csv <- read_csv("/home/ubuntu/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3a.csv") 
+
+## ok we just need to rasterize to 0.5 by 0.5 and save as a csv; we need to do this by looping through each region, because many regions overlap, so just a single rasterization will not work. 
+# shp_data$region_id <- as.numeric(as.factor(shp_data$region))
+# 
+# # Step 2: Use this numeric ID for rasterization
+# shp_to_raster <- fasterize(shp_data, base_raster, field = "region_id")
+# 
+# # Step 3 (Optional): Create a lookup table to relate region_id to region names
+# region_lookup <- data.frame(region = unique(shp_data$region), region_id = unique(shp_data$region_id))
+
+shp_to_rast_csv_final <- data.frame(x = NA, y = NA, region = NA)
+
+for(r in unique(shp_data$region)){
+  
+ # r = "Mediterranean Sea EwE"
+  
+  shp_data_r <- shp_data %>% 
+    filter(region == r) %>%
+    vect()
+
+shp_to_raster <- terra::rasterize(shp_data_r, eez_base_raster, field = "region") %>%
+  as.data.frame(., xy = TRUE)
+
+shp_to_rast_csv_final <- rbind(shp_to_raster, shp_to_rast_csv_final)
+
+}
+
+# # check mediterranean
+# test <- shp_to_rast_csv_final %>%
+#   filter(region == "Mediterranean Sea EwE")
+# 
+# test_2 <- old_csv %>%
+#   filter(region == "MediterraneanSea")  ## ok perfect
+# 
+# # check alaska 
+# test <- shp_to_rast_csv_final %>%
+#   filter(region == "Gulf Alaska")
+# 
+# test_2 <- old_csv %>%
+#   filter(region == "Gulf.Alaska")  ## ok perfect
+
+
+
+shp_to_rast_csv_final <- shp_to_rast_csv_final %>%
+  filter(!is.na(region)) %>%
+  rename(Lon = x, Lat = y)
+
+## save as a csv 
+
+write.csv(shp_to_rast_csv_final, file.path(model_region_dir, "Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3b.csv"), row.names = FALSE)
+
+
+```

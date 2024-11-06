@@ -1,0 +1,100 @@
+---
+title: "09_DKRZ_EffortFiles"
+author: "Camilla Novaglio (updated by Gage Clawson)"
+date: "6/11/2024"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+The **AIM** of this file is to clean final files catch and effort to upload to DKRZ. See global file for notes 
+
+Latest effort file from 06_Extrapolation_forSpinUp: *effort_histsoc_1841_2017_regional_models.csv*
+Latest catch data from 07_catch_data *catch_histsoc_1869_2017_regional_models.csv*
+
+## set environment 
+
+```{r}
+
+rm(list=ls())
+
+library(tidyverse)
+library(dtplyr)
+library(tictoc)
+library(data.table)
+library(mgcv)
+library(gridExtra)
+
+select<-dplyr::select
+
+```
+
+## effort data load and clean 
+
+```{r}
+gem_dir <- file.path("/home/ubuntu/gem") # change this to what works for you
+
+yannick_dir_new <- file.path(gem_dir, "private/users/yannickr")
+effort <- read_csv(file.path(yannick_dir_new, "effort_histsoc_1841_2017_regional_models.csv"))
+
+```
+
+## catch data load and clean 
+
+```{r}
+
+catch <- read_csv(file.path(yannick_dir_new, "catch_histsoc_1869_2017_regional_models.csv"))
+nrow(catch)
+
+```
+
+## SAUP codes
+
+```{r}
+
+saup <- read_csv(file.path(yannick_dir_new, "SAUPcode_to_Country.csv"))
+colnames(saup) <- c("Country_name","SAUP","ISO3","Region")
+
+catch <- catch %>% 
+  left_join(select(saup, -c(Country_name, Region))) %>% 
+  select(-c(FCountryName,ISO3))
+
+trial <- filter(catch, is.na(Reported))
+nrow(catch)
+
+```
+
+## save final data 
+
+```{r}
+
+# provide only to experiment and overwrite phase
+effort2 <- effort %>% 
+  #filter(Year <= 2010) %>%  # why < 2010? 
+  mutate(Phase = ifelse(Year < 1961, "transition", "experiment"))
+
+# rearrange columns 
+head(effort2)
+effort2 <- effort2[,c("Year","Sector", "region","SAUP", "Gear", "FGroup", "NomActive", "Phase")]
+head(effort2)
+
+catch2 <- catch %>% 
+  filter(
+    #Year <= 2004,  # why < 2004? 
+    !is.na(region)) 
+
+head(catch2)
+catch3 <- catch2[,c("Year","Sector", "region","SAUP", "FGroup", "Reported", "IUU", "Discards")]
+head(catch3)
+
+# final effort 
+dkrz <- file.path(gem_dir, "private/users/yannickr/DKRZ_EffortFiles/")
+#### NOTE: made this to 2017 now
+fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1841_2017_regional_models.csv")) 
+
+# final catch 
+fwrite(x = catch3, file.path(dkrz, "calibration_catch_histsoc_1850_2017_regional_models.csv"))
+
+# upload to DKRZ
+# scp -r DKRZ_EffortFiles/* b381217@levante.dkrz.de:/home/b/b381217/temp_effort/
+```

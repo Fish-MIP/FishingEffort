@@ -40,8 +40,10 @@ aggregated_files_dir <- "/rd/gem/private/users/yannickr/effort_mapped_by_country
 # Model_region <- lazy_dt(Model_region)
 
 # Denisse's version of the mask
-mask_df <- read_csv("/rd/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3a.csv") %>%
+mask_df <- read_csv("/home/ubuntu/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3a.csv") %>%
   lazy_dt()
+
+
 # 
 # ## PROBLEM OF MISSING DATA WHEN USING DENISSE"S MASK 
 # # check numer of grid cell to figure out effort discrepancy at global level 
@@ -89,7 +91,7 @@ join_effort_data <- function(this_file_name){
   
   # this_source_path <- file.path("/rd/gem/private/users/yannickr/effort_mapped_bycountry", this_file_name)
   # 
-  # this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_regional_models/", "aggregated_regional_model_", this_file_name)
+  this_destination_path <- paste0("/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_regional_models/", "aggregated_regional_model_", this_file_name)
   
   this_source_path <- file.path(original_effort_dir, this_file_name)
   this_destination_path <- paste0(aggregated_files_dir, "aggregated_regional_model_", this_file_name)
@@ -158,12 +160,12 @@ for(i in 1:length(effort_list_split)){
   
   message("Processing chunk #", i, " of ", length(effort_list_split))
   
-  mclapply(X = file_chunk, FUN = join_effort_data, mc.cores = 40)
+  mclapply(X = file_chunk, FUN = join_effort_data, mc.cores =  parallel::detectCores()-1)
   
 }
 toc()
 3309.716/3600 # 1 hour to run
-
+3111.534/60 # ~ 51 mins to run
 ```
 
 # Check the files
@@ -184,7 +186,7 @@ map(newly_written_files[[8]], fread)
 ```{r}
 
 # Denisse's mask 
-combined_aggregated_effort <- rbindlist(mclapply(X = newly_written_files, FUN = fread, mc.cores = 40))
+combined_aggregated_effort <- rbindlist(mclapply(X = newly_written_files, FUN = fread, mc.cores = parallel::detectCores()-1))
 fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated_regional_models_trial2.csv")) # once this works come back rename this file by deleting the trial2 extension and delete other versions from server
 
 # # NEW VESION With updated MASK built by Denisse - CAN DELETE AS YOU ARE NOW RUNNING THE WHOLE STEP2  

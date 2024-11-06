@@ -1,0 +1,170 @@
+---
+title: "Catch_data"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## check global file for notes. 
+
+# Add regions to historical cacth data from Reg 
+
+```{r new data}
+
+rm(list=ls())
+
+library(tidyverse)
+library(data.table)
+library(dtplyr)
+library(tictoc)
+library(vroom)
+library(parallel)
+library(geoR)
+library(raster)
+library(here)
+library(RColorBrewer)
+
+select <- dplyr::select
+
+gem_dir <- file.path("/home/ubuntu/gem") # make this whatever your gem filepath is 
+
+```
+
+
+```{r}
+# historical/ industrial 
+hist <- fread(file.path(gem_dir, "private/users/yannickr/Reg_catchData/20220606_RegCatchData/HistoricalIndCami.csv"))
+head(hist)
+nrow(hist)
+hist <- lazy_dt(hist)
+
+# non historical / non industrial 
+recent_art <- fread(file.path(gem_dir, "private/users/yannickr/Reg_catchData/20220606_RegCatchData/NonHistoricalNIndCami.csv"))
+head(recent_art)
+nrow(recent_art)
+recent_art <- lazy_dt(recent_art)
+
+# non historical / industrial
+tic()
+recent_ind <- fread(file.path(gem_dir, "/private/users/yannickr/Reg_catchData/20220606_RegCatchData/NonHistoricalIndCami_toCombine/NonHistoricalIndCami.csv"))
+head(recent_ind) 
+nrow(recent_ind)
+toc()
+recent_ind <- lazy_dt(recent_ind)
+
+# all data merged 
+catch <- hist %>% 
+  full_join(recent_art) %>% 
+  full_join(recent_ind)
+
+### use approach from script 02 to merge catch with mask ----
+
+yannick_dir <- file.path(gem_dir, "private/users/yannickr")
+
+# New version of region mask 
+Model_region <- read_csv(file.path(gem_dir, "private/fishmip_inputs/ISIMIP3b/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3b.csv")) %>% 
+  lazy_dt()
+
+tic()
+catch2 <- catch %>%
+  select(-Seq) %>% 
+  left_join(Model_region, by=c("Lat", "Lon")) %>% 
+  group_by(Year,CNumber,FGroup, region, Sector) %>%
+  summarise(Reported = sum(Reported, na.rm = TRUE),
+            IUU = sum(IUU, na.rm = TRUE),
+            Discards = sum(Discards, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  as.data.table() 
+toc() # 260 sec
+
+```
+
+# format catch as effort file  
+
+```{r catch}
+
+# fishing country 
+saup <- fread(file.path(gem_dir, "private/users/yannickr/SAUPcode_to_Country.csv"))
+
+saup <- saup %>% 
+  dplyr::rename(SAUP = SAUP_Country_Nbr,
+                FCountryName = Country) %>% 
+  select(-Region)
+
+catch2 <- catch2 %>% 
+  dplyr::rename(SAUP = CNumber) %>% 
+  left_join(saup, by ="SAUP")
+
+# FGroup
+taxon <- fread(file.path(gem_dir, "private/users/yannickr/Reg_catchData/20220606_RegCatchData/CodesRevisedJune2022_FGroup.csv"))
+
+# clean
+taxon <- taxon %>% 
+  mutate(Description = gsub(" ", "", Description, fixed = TRUE),
+         Description = gsub(",", "", Description, fixed = TRUE)) %>% # remove white spaces 
+  select(FunctionalGrp, Description) %>% 
+  unique()
+
+# merge 
+catch2 <- catch2 %>% 
+  left_join(taxon %>% dplyr::rename(FGroup = FunctionalGrp)) %>% 
+  select(-FGroup) %>% 
+  dplyr::rename(FGroup = Description)
+
+# sector
+catch2 <- catch2 %>% 
+  mutate(Sector = ifelse(Sector == 2, "artisanal", "industrial"))
+
+```
+
+# check catch data given Reg summaries and plots
+
+```{r}
+
+annual <- fread(file.path(gem_dir, "private/users/yannickr/Reg_catchData/20220606_RegCatchData/CheckCatchTotalsCN.csv"))
+
+# unique(annual$Sector)
+
+annual <- annual %>% 
+  mutate(Sector = ifelse(Sector == "artisanal", "artisanal", "industrial")) %>% 
+  select(-V6) %>% 
+  mutate(type = "summaries")
+
+trial <- catch2 %>% 
+  group_by(Year, Sector) %>% 
+  summarise(Reported = sum(Reported , na.rm = TRUE),
+            IUU = sum(IUU , na.rm = TRUE),
+            Discards = sum(Discards , na.rm = TRUE)) %>% 
+  mutate(type = "dataset")
+
+trial2 <- trial %>% 
+  full_join(annual) %>% 
+  as.data.frame(trial2)
+
+trial2 <- trial2 %>% 
+  gather("key", "catch", -Year, -type, -Sector)
+
+plot <- ggplot(trial2, aes(x = Year, y = catch, group = key, color = key)) + # color = Sector, group = Sector 
+  geom_point()+
+  theme_bw()+
+  facet_grid(type~Sector)
+
+pdf("Output/new/plot1.pdf")
+plot
+dev.off()
+
+```
+
+# save final data 
+
+```{r}
+
+final_catch <- catch2
+unique(as.data.frame(final_catch)$Year)
+fwrite(x = as.data.frame(final_catch), file.path(yannick_dir, "catch_histsoc_1869_2017_regional_models.csv")) # save new file
+
+```

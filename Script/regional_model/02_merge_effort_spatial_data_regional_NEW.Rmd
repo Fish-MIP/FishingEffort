@@ -1,0 +1,141 @@
+---
+editor_options: 
+  chunk_output_type: console
+---
+
+# Libraries
+
+```{r}
+
+rm(list= ls())
+
+library(tidyverse)
+library(dtplyr)
+library(dplyr)
+library(data.table)
+library(vroom)
+library(parallel)
+library(tictoc)
+
+# library(geoR)
+library(terra)
+library(here)
+library(RColorBrewer)
+
+select <- dplyr::select
+
+# yannick_dir <- "/rd/gem/private/users/yannickr"
+# original_effort_dir <- "/rd/gem/private/users/yannickr/effort_mapped_bycountry"
+# aggregated_files_dir <- "/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated_regional_models/"
+
+## gage filepaths; couldn't make a folder as /rd/ for some reason. 
+yannick_dir <- "/home/ubuntu/gem/private/users/yannickr"
+original_effort_dir <- "/home/ubuntu/gem/private/users/yannickr/effort_mapped_bycountry"
+aggregated_files_dir <- "/home/ubuntu/gem/private/users/yannickr/effort_mapped_by_country_aggregated_regional_models/"
+
+```
+
+# Read in mask
+
+```{r}
+
+# Denisse's new version of the shp - csv made by Gage; will need to change to /rd/gem in the filepath for it to work
+mask_df <- read_csv("/home/ubuntu/gem/private/fishmip_inputs/ISIMIP3b/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3b.csv") %>%
+  lazy_dt()
+
+```
+
+Make a function that will speedily import and merge the data files
+
+```{r}
+
+join_effort_data <- function(this_file_name){
+  
+  # # trial
+  # original_effort_files <- list.files(file.path(original_effort_dir), pattern = ".csv")
+  # this_file_name<-original_effort_files[[2]]
+  # # end trial
+
+  this_source_path <- file.path(original_effort_dir, this_file_name)
+  this_destination_path <- paste0(aggregated_files_dir, "aggregated_regional_model_", this_file_name)
+  
+  # if(!file.exists(this_destination_path)){ # If you want to skip files that are already done, comment this out
+    
+    Year <- as.numeric(str_extract(this_file_name, pattern =  "([[:digit:]])+"))
+    
+    these_data <- fread(this_source_path)
+    these_data <- lazy_dt(these_data)
+  
+    
+    #dtplyr approach
+    these_aggregated_data <-
+      these_data %>%
+      left_join(mask_df, by=c("Lat", "Lon")) %>% # mask_df
+      group_by(region, SAUP, Gear, FGroup, Sector) %>% # region
+      summarise(NomActive = sum(NomActive, na.rm = TRUE),
+                EffActive = sum(EffActive, na.rm = TRUE),
+                NV= sum(NV, na.rm = TRUE),
+                P= sum(P, na.rm = TRUE),
+                GT= sum(GT, na.rm = TRUE)) %>%
+      mutate(Year = Year) %>% as.data.table()
+    
+    fwrite(x = these_aggregated_data, file = file.path(this_destination_path))
+  # }else{
+    
+   # next()
+ # }
+  
+}
+
+
+```
+
+# Run the code on all 30,000 files and write them to folder
+
+```{r}
+original_effort_files <- list.files(file.path(original_effort_dir), pattern = ".csv")
+
+chunk_size <- 500 #chunk size for processing
+effort_list_split <- split(original_effort_files, ceiling(seq_along(original_effort_files)/chunk_size))
+length(effort_list_split) #60 chunks
+
+
+tic()
+for(i in 1:length(effort_list_split)){
+  
+  file_chunk <- effort_list_split[[i]]
+  
+  message("Processing chunk #", i, " of ", length(effort_list_split))
+  
+  mclapply(X = file_chunk, FUN = join_effort_data, mc.cores =  parallel::detectCores()-1)
+  
+}
+toc()
+
+3525.122/60 # ~59 mins to run
+
+```
+
+# Check the files
+
+```{r}
+#check the files
+newly_written_files <- list.files(aggregated_files_dir, full.names = TRUE)
+
+# pick one randomly 
+map(newly_written_files[[8]], fread)
+
+```
+
+# Combine all listed files to one file
+
+```{r}
+
+# Denisse's mask 
+combined_aggregated_effort <- rbindlist(mclapply(X = newly_written_files, FUN = fread, mc.cores = parallel::detectCores()-1))
+fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated_regional_models_new.csv")) 
+
+#### NOTE: Gage saved file "all_effort_aggregated_regional_models_new.csv" on November 6, 2024 with new regions from FISHMIP
+
+```
+
