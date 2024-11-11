@@ -24,6 +24,7 @@ library(tictoc)
 library(data.table)
 library(mgcv)
 library(gridExtra)
+library(qs)
 
 select<-dplyr::select
 
@@ -91,9 +92,11 @@ head(catch3)
 dkrz <- file.path(gem_dir, "private/users/yannickr/DKRZ_EffortFiles/")
 #### NOTE: made this to 2017 now
 fwrite(x = effort2, file.path(dkrz, "effort_histsoc_1841_2017_regional_models.csv")) 
+qs::qsave(effort2, file.path(dkrz, "effort_histsoc_1841_2017_regional_models.qs")) # let's also save as a .qs file, since it make it much smaller (12x smaller)
 
 # final catch 
 fwrite(x = catch3, file.path(dkrz, "calibration_catch_histsoc_1850_2017_regional_models.csv"))
+qs::qsave(catch3, file.path(dkrz, "calibration_catch_histsoc_1850_2017_regional_models.qs")) # save as qs as well
 
 # upload to DKRZ
 # scp -r DKRZ_EffortFiles/* b381217@levante.dkrz.de:/home/b/b381217/temp_effort/
