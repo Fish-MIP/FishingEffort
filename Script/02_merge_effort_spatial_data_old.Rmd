@@ -25,7 +25,7 @@ select <- dplyr::select
 
 yannick_dir <- "/rd/gem/private/users/yannickr"
 
-original_effort_dir <- "/rd/gem/private/users/yannickr/effort_mapped_bycountry"
+original_effort_dir <- "/home/ubuntu/gem/private/users/yannickr/effort_mapped_bycountry"
 
 aggregated_files_dir <- "/rd/gem/private/users/yannickr/effort_mapped_by_country_aggregated/"
 

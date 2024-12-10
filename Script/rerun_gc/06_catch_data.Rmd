@@ -1,0 +1,236 @@
+---
+title: "Catch_data"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Aim 
+
+The aim of this file is to aggregate Reg's historical catch data as per Yannick's effort data 
+
+ORIGIN: data sent from Reg on 20/05/22 - RE: question about mapping catch and effort
+
+WARNING on units and weights: Should we weight catch (and effort, script 02) by grip cell area when summarising at LME, EEZ level? it seems not - see Reg's email conversation. Also the non-weighted value match Yannick's and Reg's global totals. 
+
+FORMAT:  
+1. from Reg: Data by cell (with lat and long) by year by country fishing (represented by a code CNumber) by FGroup (represented by a code). The numbers are in tonnes for reported, IUU and Discards. Typically you would ignore discards as they can be any species (not the one in the record usually). So I would combine reported and IUU estimated (see email conversation on discards).
+2. Catch is in tonnes (by grid cell), can /area grid cell to get catch rates. Reg NOTES: "PPS if you decide to map using the cell data then you should NOT use the tonnes but rather the catch rate (tonnes per sq km of ocean) as the cells vary in size and tonnes would be misleading ..."
+
+## Add LME and EEZ to historical cacth data from Reg 
+
+```{r new data}
+
+rm(list=ls())
+
+library(tidyverse)
+library(data.table)
+library(dtplyr)
+library(tictoc)
+
+# historical/ industrial 
+hist <- fread("/home/ubuntu/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/HistoricalIndCami.csv")
+head(hist)
+nrow(hist)
+hist<-lazy_dt(hist)
+
+# non historical / non industrial 
+recent_art<-fread("/home/ubuntu/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/NonHistoricalNIndCami.csv")
+head(recent_art)
+nrow(recent_art)
+recent_art<-lazy_dt(recent_art)
+
+# non historical / industrial
+tic()
+recent_ind<-fread("/home/ubuntu/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/NonHistoricalIndCami_toCombine/NonHistoricalIndCami.csv")
+head(recent_ind) 
+nrow(recent_ind)
+toc()
+recent_ind<-lazy_dt(recent_ind)
+
+# all data merged! 
+catch<-hist %>% 
+  full_join(recent_art) %>% 
+  full_join(recent_ind)
+
+# head(as.data.table(catch))
+# nrow(as.data.table(catch)) # 116450350
+# nrow(hist) + nrow(recent_ind) + nrow(recent_art) # 116450350
+# sort(unique(as.data.table(catch)$Year)) # 1869 - 2017
+
+# use same approach as in 02_merge_effort_spetial_data.Rmd to add LME, EEZ, FAO regions and aggregate data by these groups
+
+```
+
+# Explore files and join the main data
+
+```{r}
+
+### paste code from script 02
+
+library(dplyr)
+library(vroom)
+library(parallel)
+library(geoR)
+library(raster)
+library(here)
+library(RColorBrewer)
+library(terra)
+
+select <- dplyr::select
+rename <- dplyr::rename
+
+yannick_dir <- "/home/ubuntu/gem/private/users/yannickr"
+
+new_dir <- "/home/ubuntu/gem/private/users/gclawson"
+
+
+EEZ <- read.csv(file.path(new_dir, "spatial_masks/EEZ_areas.csv")) %>%
+  dplyr::select(x, y, eez_name = figure_name) %>%
+  mutate(eez_id = as.numeric(as.factor(eez_name)))
+
+EEZ_xyz <- EEZ %>% as_tibble() %>%   select(x,y,z=eez_id) 
+EEZ_raster <- raster::rasterFromXYZ(EEZ_xyz)
+plot(EEZ_raster) # CN to 800 because this is eez_country_code
+
+EEZ_adj <- EEZ %>% select(-eez_id) # no need for this anymore - avoid confusion 
+nrow(as.data.table(EEZ_adj))
+EEZ_adj <- distinct(EEZ_adj) %>% 
+  lazy_dt()
+nrow(as.data.table(EEZ_adj))
+
+ggplot(data = EEZ_xyz)+
+  geom_tile(aes(x=x, y=y, fill=z)) +
+  scale_fill_gradientn(colours = RColorBrewer::brewer.pal(n = 9, name = "Spectral"))
+
+ggsave(filename = here("Output/rerun/eez_wo_duplicates.jpg"), dpi=300, device = "jpg", width = 9, height = 5)
+
+# LME data
+LMEs <- read.csv(file.path(new_dir, "spatial_masks/LME_areas.csv")) %>%
+  rename(lme_name = fao_official) 
+
+LME_xyz <- LMEs %>% as_tibble() %>%  select(x,y,ID_mrgd) 
+LME_raster <- rast(LME_xyz, type = "xyz")
+plot(LME_raster) 
+
+LMEs <- LMEs %>% 
+  dplyr::select(-ID_mrgd)
+
+LMEs <- lazy_dt(LMEs)
+
+#FAO regions data
+FAO_regions <- read.csv(file.path(new_dir, "spatial_masks/FAO_major_areas.csv")) %>%
+  dplyr::distinct(x, y, fao_region_name = nm_mrgd)
+
+FAO_regions <- lazy_dt(FAO_regions)
+
+#The data have different rows. Want to make sure they line up
+nrow(EEZ_adj) #173333
+nrow(as_tibble(LMEs)) #173371
+nrow(FAO_regions) #171859
+
+#Some FAO data are around that have no LME or EEZ data
+all_spatial_layers <- 
+  full_join(x = full_join(x = LMEs, y = FAO_regions, by = c("x", "y")), 
+            y = EEZ_adj, by = c("x", "y")) %>% 
+  as.tibble()
+
+```
+
+# Run function to aggregate data 
+
+```{r}
+
+tic()
+catch2 <- catch %>%
+  select(-Seq) %>% 
+  left_join(LMEs, by=c("Lon" = "x", "Lat" = "y")) %>%
+  left_join(EEZ_adj, by=c("Lon" = "x", "Lat" = "y")) %>%
+  left_join(FAO_regions, by=c("Lon" = "x", "Lat" = "y")) %>%
+  group_by(Year,CNumber,FGroup, fao_area = fao_region_name, LME = lme_name, eez_country_name = eez_name, Sector) %>%
+  summarise(Reported = sum(Reported, na.rm = TRUE),
+            IUU = sum(IUU, na.rm = TRUE),
+            Discards = sum(Discards, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  as.data.table() 
+toc()# 125.328 # 2 min
+
+```
+
+## format catch as effort file  
+
+```{r catch}
+
+effort <- fread(file.path(new_dir, "effort_histsoc_1950_2017_EEZ_addFAO.csv")) # use EEZ version where EEZ is not the administrative country and where FAO regions are added 
+# head(effort)
+
+# do the LME and EEZ match? ----
+
+# EEZ - OK
+sort(unique(catch2$eez_country_name), na.last = TRUE)
+sort(unique(effort$eez_country_name), na.last = TRUE)
+
+# LME - OK
+sort(unique(catch2$LME),na.last = TRUE)
+sort(unique(effort$LME), na.last = TRUE)
+
+# fishing country 
+saup<-read_csv(file.path(yannick_dir, "yannickr/SAUPcode_to_Country.csv"))
+
+saup<-saup %>% 
+  dplyr::rename(SAUP = SAUP_Country_Nbr,
+                FCountryName = Country) %>% # NOTE, this column seems to be in the catche data 
+  select(-Region)
+
+# this shoudl be automatic - but do it anyway 
+catch2<-lazy_dt(catch2)
+
+catch2<-catch2 %>% 
+  dplyr::rename(SAUP = CNumber) %>% 
+  left_join(saup, by ="SAUP")
+
+# FGroup
+taxon <- read_csv(file.path(yannick_dir, "Reg_catchData/20220606_RegCatchData/CodesRevisedJune2022_FGroup.csv"))
+
+# clean
+taxon<-taxon %>% 
+  mutate(Description = gsub(" ", "", Description, fixed = TRUE),
+         Description = gsub(",", "", Description, fixed = TRUE)) %>% # remove white spaces 
+  select(FunctionalGrp, Description) %>% 
+  unique()
+
+# any missing one in effort/ catch? No - all OK
+setdiff(unique(taxon$Description), unique(effort$FGroup))
+setdiff(unique(effort$FGroup),unique(taxon$Description)) # Unknown_EEZ which will be removed in 07
+
+sort(unique(taxon$Description), na.last = TRUE)
+sort(unique(effort$FGroup), na.last = TRUE) # Unknown_EEZ which will be removed in 07
+
+# merge 
+catch2<-catch2 %>% 
+  left_join(taxon %>% dplyr::rename(FGroup = FunctionalGrp)) %>% 
+  select(-FGroup) %>% 
+  dplyr::rename(FGroup = Description)
+
+# sector
+catch2<-catch2 %>% 
+  mutate(Sector = ifelse(Sector == 2, "artisanal", "industrial"))
+
+```
+
+# save final data 
+
+```{r}
+
+final_catch <- as.data.table(catch2) # this should not be needed but also done on effort. fwrite takes data.table and data.frame for sure. 
+
+sort(unique(as.data.frame(final_catch)$Year), na.last = TRUE)
+
+fwrite(x = as.data.frame(final_catch), file.path(new_dir, "catch_histsoc_1869_2017_EEZ_addFAO.csv"))
+
+```
+

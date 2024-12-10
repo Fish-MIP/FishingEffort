@@ -1,0 +1,213 @@
+---
+title: "Merge effort data to LME, FAO, and EEZ areas"
+author: "Camilla Novaglio and Gage Clawson"
+date: "2024-12-03"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+# Libraries
+
+```{r}
+
+rm(list=ls())
+
+library(tidyverse)
+library(dtplyr)
+library(dplyr)
+library(data.table)
+library(here)
+library(vroom)
+library(parallel)
+library(tictoc)
+library(raster)
+library(RColorBrewer)
+library(terra)
+
+select <- dplyr::select
+
+yannick_dir <- "/home/ubuntu/gem/private/users/yannickr"
+
+new_dir <- "/home/ubuntu/gem/private/users/gclawson"
+
+original_effort_dir <- "/home/ubuntu/gem/private/users/yannickr/effort_mapped_bycountry"
+
+aggregated_files_dir <- "/home/ubuntu/gem/private/users/yannickr/effort_mapped_by_country_aggregated/"
+
+```
+
+# Explore files and join the main data
+
+```{r}
+# EEZ data
+EEZ <- read.csv(file.path(new_dir, "spatial_masks/EEZ_areas.csv")) %>%
+  dplyr::select(x, y, eez_name = figure_name)
+
+EEZ_old <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv"))
+
+EEZ_tot<-EEZ %>% 
+  select(eez_name, ID_mrgd) %>% 
+  unique()
+
+nrow(EEZ_tot) # 253
+
+EEZ_tot_old <- EEZ_old %>% 
+  select(CNumber) %>% 
+  unique()
+
+nrow(EEZ_tot_old) # 194; so we have more represented? That's good right? 
+
+test <- EEZ %>%
+  group_by(x, y) %>%
+  summarise(obs = n_distinct(eez_name)) %>%
+  ungroup() # are there any duplicates or multiple EEZs in a cell? No
+
+
+
+test <- EEZ_old %>%
+  group_by(Lon, Lat) %>%
+  summarise(obs = n_distinct(CNumber)) %>%
+  ungroup() # the old data has some duplicates because of overlapping zones... we have just taken the administrative region for these overlapping claims that is listed in the source shape file. 
+
+
+# LME data
+LMEs <- read.csv(file.path(new_dir, "spatial_masks/LME_areas.csv")) %>%
+  rename(lme_name = fao_official) %>%
+  dplyr::select(-ID_mrgd)
+
+LME_xyz <- LMEs %>% as_tibble() %>%  select(x,y,ID_mrgd) 
+LME_raster <- rast(LME_xyz, type = "xyz")
+plot(LME_raster) 
+
+# FAO regions data
+FAO_regions <- read.csv(file.path(new_dir, "spatial_masks/FAO_major_areas.csv")) %>%
+  dplyr::distinct(x, y, fao_region_name = nm_mrgd)
+
+# FAO_xyz <- FAO_regions %>% as_tibble() %>%  rename(x=Lon, y= Lat, z=fao_area) %>%  select(x,y,z) 
+# FAO_raster <- raster::rasterFromXYZ(FAO_xyz)
+# plot(FAO_raster) 
+
+#The data have different rows. Want to make sure they line up
+nrow(EEZ) # 173333
+nrow(LMEs) # 173371
+nrow(FAO_regions) # 171859
+## all pretty close, so that's good. 
+
+#Some FAO data are around that have no LME or EEZ data
+all_spatial_layers <- 
+  full_join(x = full_join(x = LMEs, y = FAO_regions, by = c("x", "y")), 
+            y = EEZ, by = c("x", "y"))
+
+
+missing_eez <- all_spatial_layers %>%
+    filter(is.na(eez_name)) 
+  
+  
+missing_fao_eez <- 
+  all_spatial_layers %>% 
+  filter(is.na(fao_region_name), 
+         is.na(eez_name), 
+         !is.na(lme_name))  # 621 where there is LME and not FAO and EEZ
+
+missing_lme_eez <- 
+  all_spatial_layers %>% 
+  filter(!is.na(fao_region_name), 
+         is.na(eez_name), 
+         is.na(lme_name))  # 71 where there is FAO area but not EEZ or LME
+
+missing_lme_fao <- 
+  all_spatial_layers %>% 
+  filter(is.na(fao_region_name), 
+         !is.na(eez_name), 
+         is.na(lme_name))  # 341 cells where there is EEZ area but not FAO or LME - These are almost all arctic areas or black sea; does the EEZ file have black sea areas? Do we even want these?  
+
+not_missing <- 
+  all_spatial_layers %>% 
+  filter(!is.na(fao_region_name), 
+         !is.na(eez_name), 
+         !is.na(lme_name)) 
+
+all_missing <- 
+  all_spatial_layers %>% 
+  filter(is.na(fao_region_name), 
+         is.na(eez_name), 
+         is.na(lme_name)) 
+
+## do i need to add an ID for land? 
+
+SAUP_lookup <- read.csv(file.path(yannick_dir, "SAUPcode_to_Country.csv"))
+
+```
+
+# Run function to aggregate data on all 30,000 files and write them to folder
+
+```{r}
+
+source("Script/rerun_gc/Helper_functions_fishingEffort.R")
+
+#compressed_effort_files <- list.files(file.path(compressed_effort_dir), full.names = TRUE)
+original_effort_files <- list.files(file.path(original_effort_dir), pattern = ".csv")
+
+chunk_size <- 500 #chunk size for processing
+effort_list_split <- split(original_effort_files, ceiling(seq_along(original_effort_files)/chunk_size))
+length(effort_list_split) #60 chunks
+
+tic()
+for(i in 1:length(effort_list_split)){
+  
+  file_chunk <- effort_list_split[[i]]
+  
+  message("Processing chunk #", i, " of ", length(effort_list_split))
+  
+  mclapply(X = file_chunk, FUN = join_effort_data, mc.cores = detectCores() - 1)
+  
+}
+toc()
+2014.127/3600 #~1 hour to run
+
+```
+
+# Check the files
+
+```{r}
+
+newly_written_files <- list.files(file.path(new_dir, "effort_mapped_by_country_aggregated_EEZ"), full.names = TRUE)
+
+#pick one randomly 
+test <- map(newly_written_files[[8]], fread) %>% as.data.frame()
+
+## seeing some weird stuff here. That one is China. Some cells are missing EEZ, LME, and FAO region? Which doesn't make sense. Is the fishing effort allocated to land cells sometimes, by accident? 
+
+eez_test <- all_spatial_layers %>%
+  distinct(x, y, eez_name) %>% 
+  mutate(eez_name = as.numeric(as.factor(eez_name))) %>%
+  rast(., type = "xyz")
+
+lme_test <- all_spatial_layers %>%
+  distinct(x, y, lme_name) %>% 
+  mutate(lme_name = as.numeric(as.factor(lme_name))) %>%
+  rast(., type = "xyz")
+
+fao_test <- all_spatial_layers %>%
+  distinct(x, y, fao_region_name) %>% 
+  mutate(fao_region_name = as.numeric(as.factor(fao_region_name))) %>%
+  rast(., type = "xyz")
+## ok these all look fine? So i think maybe there is some land being included in the effort data. There's nothing i can do about this. 
+
+```
+
+# Combine all listed files to one file
+
+```{r}
+
+combined_aggregated_effort <- rbindlist(mclapply(X = newly_written_files, FUN = fread, mc.cores = 32))
+
+# fwrite(x = combined_aggregated_effort, file.path(yannick_dir, "all_effort_aggregated.csv"))
+
+# CN consider the EEZ version as explained above
+fwrite(x = combined_aggregated_effort, file.path(new_dir, "all_effort_aggregated_EEZ.csv"))
+
+```
+

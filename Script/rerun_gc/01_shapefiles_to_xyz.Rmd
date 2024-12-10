@@ -1,0 +1,263 @@
+---
+title: "Creating updated masks for catch and effort extraction"
+author: "Camilla Novaglio and Gage Clawson"
+date: "2024-12-03"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Summary
+
+We take shapefiles for EEZs, FAO major fishing areas, and large marine ecosystems and rasterize them to a 0.5 by 0.5 degree grid. The shapefiles we pull are listed in the data sources section, and we have pulled derived versions from the FishMIP project at IMAS. 
+
+## Data sources
+
+ - [Exclusive Economic Zones (EEZs) boundaries (version 11) from the Flanders Marine Institute](https://www.vliz.be/en/imis?dasid=6316&doiid=386)
+ - [FAO statistical areas for fishery purposes](https://www.fao.org/fishery/en/area/search)
+ - [Large Marine Ecosystems of the World](https://hub.arcgis.com/maps/47ad906420624781bb09a3a0cddd9cc2/explore?location=0.770576%2C-75.093496%2C1.93)
+
+### Setup 
+
+```{r setup}
+library(tidyverse)
+library(sf)
+library(raster)
+library(fasterize)
+library(countrycode)
+library(terra)
+
+select <- dplyr::select
+
+save_dir <- "/home/ubuntu/gem/private/users/gclawson"
+
+#Defining base directory
+base_dir <- "/home/ubuntu/gem/private/shared_resources/"
+
+## do they have a lookup anywhere in FISHMIP for the region names? 
+
+base_folder <- "/home/ubuntu/gem/private/users/camillan/FAO_Report/"
+
+yannick_dir <- "/home/ubuntu/gem/private/users/yannickr/"
+
+names_key <- read.csv(file.path(base_folder, "Merged_FAO_EEZ/FAO-Major-Areas_EEZ_continent_keys.csv")) %>%
+  add_row(NAME_EN = "High Seas", ID_mrgd = 0, nm_mrgd = "High Seas", continent = NA, fao_official = "High Seas", Country_FAO = "High Seas", figure_name = "High Seas")
+ 
+#Loading FAO shapefiles
+fao_shp <- list.files(base_dir, "FAO_MajorAreas.shp", 
+                          recursive = T, full.names = T) |> 
+  read_sf() |> 
+  mutate(F_CODE = as.integer(F_CODE)) %>%
+  left_join(names_key)
+
+
+#Loading EEZ shapefile
+fao_eez_shp <- list.files(base_dir, "FAO_MajorAreas_200NM.shp", 
+                          recursive = T, full.names = T) |> 
+  read_sf() %>%
+  dplyr::select(-nm_mrgd, -NAME_EN) %>%
+      mutate(ID_mrgd = ifelse(ID_mrgd <= 88, 0, ID_mrgd)) %>%
+  mutate(Admin_Country = ifelse(ID_mrgd == 0, "High Seas", SOVEREIGN1),
+         ) %>%
+  left_join(names_key)
+
+
+test <- fao_eez_shp %>%
+      st_drop_geometry()
+
+names_key_eez <- fao_eez_shp %>%
+  st_drop_geometry() %>%
+  mutate(F_CODE = NA, 
+         OCEAN = NA) %>% 
+  distinct()
+  
+
+#Loading LME shapefile
+fao_lme_shp <- list.files(base_dir, "FAO-MajorAreas_LMEs.shp", recursive = T,
+                          full.names = T) |> 
+  read_sf() 
+
+test <- fao_lme_shp %>% st_drop_geometry() %>%
+  filter(!is.na(LME_NAME))
+
+
+old_lmes <- read.csv(file.path(yannick_dir, "LME_FAO_coding_CN.csv")) %>%
+  filter(LME_FAO_code == "LME") %>%
+  distinct(LME = LME_FAO_number, lme_name = LME_FAO_name) # hmm looks like the LMEs are different? 
+
+setdiff(unique(test$LME_NAME), unique(old_lmes$lme_name))
+# [1] "Labrador - Newfoundland"                  "Northeast Australian Shelf"              
+#  [3] "East Central Australian Shelf"            "Antarctica"                              
+#  [5] "South West Australian Shelf"              "West Central Australian Shelf"           
+#  [7] "Iceland Shelf and Sea"                    "Greenland Sea"                           
+#  [9] "Norwegian Sea"                            "East Bering Sea"                         
+# [11] "Canadian Eastern Arctic - West Greenland" "Hudson Bay Complex"                      
+# [13] "Canadian High Arctic - North Greenland"   "Central Arctic"                          
+# [15] "Northern Bering - Chukchi Seas"      
+
+setdiff(unique(old_lmes$lme_name), unique(test$LME_NAME))
+
+#  [1] "Eastern Bering Sea"                   "Newfoundland-Labrador Shelf"          "West Greenland Shelf"                
+#  [4] "East Greenland Shelf"                 "Norwegian Shelf"                      "Northeast Australian shelf"          
+#  [7] "East - Central Australian Shelf"      "Southwest Australian Shelf"           "West-Central Australian Shelf"       
+# [10] "Chukchi Sea"                          "Iceland Shelf"                        "Antarctic"                           
+# [13] "Hudson Bay"                           "Arctic Ocean"                         "Canadian High Arctic North Greenland"
+
+## ok so the names are a bit different.. and also the new LMEs has no Arctic Ocean - I'm not sure why, but the FAO report from FISHMIP uses these different LMEs, so I will stick with these for now. From the checking I did in the next script, they **mostly** look ok...
+
+```
+
+Import fao regions shapefile and create numeric variable for fao areas from the original character
+
+```{r}
+
+fao_regions_shp <- fao_shp %>%  mutate(F_area = F_AREA %>% as.numeric())
+
+
+#check it plots OK using both variables (both look fine)
+
+ggplot()+
+  geom_sf(data = fao_regions_shp %>% filter(F_LEVEL == "MAJOR"), aes(fill = F_area))
+
+
+ggplot()+
+  geom_sf(data = fao_shp %>% filter(F_LEVEL == "MAJOR"), aes(fill = F_AREA)) 
+
+```
+
+Convert shapefiles to rasters and save
+
+```{r}
+
+#Use eez file from Yannick's paper as a base? 
+eez_file <- read_csv(file.path(yannick_dir, "Cells_LatLon_EEZ.csv")) %>% select(Lon, Lat, A_Code)
+eez_base_raster <- rast(eez_file, type = "xyz")
+plot(eez_base_raster)
+
+## FAO Major fishing areas
+fao_raster <- terra::rasterize(vect(fao_regions_shp), eez_base_raster, field = "ID_mrgd")
+
+plot(fao_raster) #looks OK - FAO area numbers are retained
+
+writeRaster(fao_raster, file.path(save_dir, "spatial_masks/FAO_major_areas.tif"), overwrite = TRUE)
+
+#shape file values (except NA) in raster should match unique areas in shapefile  
+sort(unique(values(fao_raster)))==sort(unique(fao_regions_shp$F_AREA))
+
+## EEZs 
+
+eez_raster <- terra::rasterize(vect(fao_eez_shp), eez_base_raster, field = "ID_mrgd")
+plot(eez_raster)
+
+setdiff(sort(unique(values(eez_raster))), sort(unique(fao_eez_shp$ID_mrgd)))
+missing_eez <- setdiff(sort(unique(fao_eez_shp$ID_mrgd)), sort(unique(values(eez_raster)))) #   [1]  5692  8365  8491  8495 21789 21790 21791 21803 22491 48953 48961 48962 48964 48965 48966 48967 48969 48971 48974 48976
+# [21] 48977 48997 48998 48999 49000 49001 49002 50167 50170
+
+test_eez <- fao_eez_shp %>%
+  st_drop_geometry() %>%
+  filter(ID_mrgd %in% missing_eez) # these are all overlapping or joint regine EEZs... what does fishmip do to these?
+
+fishmip_eez <- read.csv("/home/ubuntu/gem/private/users/camillan/FAO_Report/Merged_FAO_EEZ/gfdl-esm4_60arcmin_global_FAO-EEZ.csv") %>%
+  filter(ID_mrgd %in% missing_eez) # ok.. they are missing them all except for Jordan
+
+fishmip_eez <- read.csv("/home/ubuntu/gem/private/users/camillan/FAO_Report/Merged_FAO_EEZ/ipsl-cm6a_60arcmin_global_FAO-EEZ.csv") %>%
+  filter(ID_mrgd %in% missing_eez) # this is missing them all 
+
+missing_eez_shp <- fao_eez_shp %>%
+  filter(ID_mrgd %in% missing_eez)
+
+missing_eez_raster <- terra::rasterize(vect(missing_eez_shp), eez_base_raster, field = "ID_mrgd")
+plot(missing_eez_raster)
+
+all_eez <- c(eez_raster, missing_eez_raster) # hmm weird, still not getting places like Jordan, Bosnia, Palestine... is it just because their EEZs are so small? 
+
+writeRaster(eez_raster, file.path(save_dir, "spatial_masks/EEZ_areas.tif"), overwrite = TRUE)
+
+
+## LMEs 
+
+# # compare to Yannick's LMEs
+# LMEs <- data.table::fread(file.path(yannick_dir, "LMESeq.csv"))
+# 
+# length(sort(unique(LMEs$LME))) # 67
+# 
+# lme_codes <- read.csv(file.path(yannick_dir, "LME_FAO_coding_CN.csv")) %>%
+#   filter(LME_FAO_code == "LME")
+# 
+# test <- fao_lme_shp %>% st_drop_geometry() %>% filter(is.na(F_CODE))
+# length(sort(unique(test$ID_merged))) # 66
+# ## ok we're fine here. There are 66 LMEs in each
+
+lme_raster <- terra::rasterize(vect(fao_lme_shp), eez_base_raster, field = "ID_merged")
+plot(lme_raster)
+
+sort(unique(values(lme_raster)))
+sort(unique(fao_lme_shp$ID_merged)) # perfect 
+
+writeRaster(lme_raster, file.path(save_dir, "spatial_masks/LME_areas.tif"), overwrite = TRUE)
+
+old_lmes <- read.csv(file.path(yannick_dir, "LMESeq.csv")) %>%
+  dplyr::select(Lon, Lat, LME) %>% 
+  rast(., type = "xyz")
+plot(old_lmes) # ah ok, seems like the old LMEs doesn't have a good coastline.
+
+
+```
+
+Convert rasters to xyz object and save
+
+ - we want to save identifying codes with these as well, so we'll join to the original files with the names. 
+
+```{r}
+## FAO areas 
+
+fao_lookup <- fao_regions_shp %>% 
+  st_drop_geometry() %>% 
+  filter(F_LEVEL == "MAJOR") %>%
+  distinct(F_area, fao_region_name = NAME_EN)
+
+fao_raster <- rast(file.path(save_dir, "spatial_masks/FAO_major_areas.tif"))
+
+fao_df <- fao_raster %>%
+  as.data.frame(., xy = TRUE) %>%
+  left_join(., names_key)
+
+write.csv(fao_df, file.path(save_dir, "spatial_masks/FAO_major_areas.csv"), row.names = FALSE)
+
+## EEZs
+
+eez_raster <- rast(file.path(save_dir, "spatial_masks/EEZ_areas.tif"))
+
+eez_df <- eez_raster %>%
+  as.data.frame(., xy = TRUE) %>%
+ # left_join(., names_key)
+  left_join(., names_key_eez) %>%
+    # mutate(fao_official = ifelse(POL_TYPE %in% c("Overlapping claim", "Joint regime"), SOVEREIGN1, fao_official),
+    #      Country_FAO = ifelse(POL_TYPE %in% c("Overlapping claim", "Joint regime"), SOVEREIGN1, Country_FAO),
+    #      figure_name = ifelse(POL_TYPE %in% c("Overlapping claim", "Joint regime"), SOVEREIGN1, figure_name)) %>%
+      mutate(fao_official = ifelse(is.na(figure_name), SOVEREIGN1, fao_official),
+         Country_FAO = ifelse(is.na(figure_name), SOVEREIGN1, Country_FAO),
+         figure_name = ifelse(is.na(figure_name), SOVEREIGN1, figure_name)) %>% # replace any joint or overlapping region with the first sovereign nation listed 
+  dplyr::select(x, y, ID_mrgd, continent, fao_official, Country_FAO, figure_name, nm_mrgd) %>%
+  mutate(figure_name = ifelse(nm_mrgd == "High Seas", nm_mrgd, figure_name))
+
+write.csv(eez_df, file.path(save_dir, "spatial_masks/EEZ_areas.csv"), row.names = FALSE)
+
+## LMEs
+
+lme_lookup <- fao_lme_shp %>%
+  st_drop_geometry() %>%
+  filter(is.na(F_CODE)) %>%
+  distinct(fao_official = LME_NAME, ID_mrgd = ID_merged)
+
+lme_df <- lme_raster %>%
+  as.data.frame(., xy = TRUE) %>%
+  rename(ID_mrgd = ID_merged) %>%
+  left_join(lme_lookup)
+
+write.csv(lme_df, file.path(save_dir, "spatial_masks/LME_areas.csv"), row.names = FALSE)
+
+
+```
+
+

@@ -1,0 +1,807 @@
+---
+title: "check_final_files"
+output: html_document
+date: "2023-07-11"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Aim 
+
+Check files produced in scripts 01-07, compare across versions and with originals 
+
+```{r}
+
+rm(list=ls())
+
+library(tidyverse)
+library(dtplyr)
+library(tictoc)
+library(data.table)
+library(mgcv)
+library(gridExtra)
+
+select<-dplyr::select
+
+# effort 1841-2017 (from 07 phase1)
+load("~/FishingEffort/Data/temp_effort.RData") 
+effort1<-reconstructed_effort_LME_war_ref
+# head(effort1)
+
+# effort allocated to groups 1841-2017 (from 07 phase2) 
+# load("/rd/gem/private/users/camillan/FishingEffort_Data/temp_effort_EEZ_addFAO.RData")
+# reconstructed_effort_ref_all
+reconstructed_effort_ref_all<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1841_2017_EEZ_addFAO.csv", data.table = FALSE)
+
+# very final effort 1841-2010 (from 08) 
+final_effort<-fread("/rd/gem/private/users/yannickr/DKRZ_EffortFiles/effort_isimip3a_histsoc_1841_2010.csv", data.table = FALSE) 
+
+# head(reconstructed_effort_ref_all)
+
+# IMPORTANT - check difference between previous run where you considered administrative country and second run where you considered actual EEZ. 
+# unique(reconstructed_effort_ref_all$eez_country_name)
+
+# IMPORTANT 2 - checks after you added FAO_LME column
+# head(reconstructed_effort_ref_all)
+
+# check NAs for all spatial groupings 
+sort(unique(final_effort$eez_country_name), na.last = FALSE) # No NAs, but high seas which is OK
+sort(unique(final_effort$LME), na.last = FALSE) # No NAs but LME 0 which is OK 
+sort(unique(final_effort$fao_area), na.last = FALSE) #no NAs for Fao region   
+# trial<-final_effort %>% 
+#   filter(is.na(fao_area))
+# unique(trial$eez_country_name) # "GuineaBissau"
+# unique(trial$LME) # 27 
+# nrow(trial)
+
+# check hierarchy - that sum of effort is the same across FAO, LME, and EEZ. 
+LME_check<-reconstructed_effort_ref_all %>% 
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e))
+# 997062694036 
+
+EEZ_check<-reconstructed_effort_ref_all %>% 
+  group_by(eez_country_name) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e))
+# 997062694036
+
+FAO_check<-reconstructed_effort_ref_all %>% 
+  group_by(fao_area) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  # filter(!is.na(fao_area)) %>% 
+  summarise(e = sum(e))
+# 997062694036
+
+#### CHECK that this matches the original effort file printed at end of 02 and compared to Yannick's data but considering only 1950 onward 
+
+## effort aggregated and printed in 02 - 1950-2017
+a<-fread("/rd/gem/private/users/yannickr/all_effort_aggregated_EEZ.csv", data.table = FALSE)
+# try older one 
+# a<-read_csv("/rd/gem/private/users/yannickr/all_effort_aggregated.csv") # same tot value # 882027567877.
+effort02<-a
+# head(effort02)
+# unique(effort02$Year)
+check<-effort02 %>% 
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e)) 
+check # 882027567877.
+
+# effort from Yannick - 1950-2017 
+effort_yannick<-fread("/rd/gem/private/DataYannick/TotalAggregatedFGroupLME.csv", data.table = FALSE)
+# head(effort_yannick)
+effort_yannick<-effort_yannick[-1,]
+unique(effort_yannick$Year)
+check<-effort_yannick %>% 
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e)) 
+check # 882027567877.
+
+# effort printed in 05 - 1951-2017
+effort05<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv", data.table = FALSE) 
+
+check<-effort05 %>% 
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e)) 
+check # 882027567898. DIFFERENCE 1 added effort! (882027567877.)
+# 882027567898 - 882027567877 # 21 very little difference though - CORRECTED (write.csv and rounding values was the problem - this happened in previous version but the difference is minimal and not visible in plots and due to the write.csv behavior, hence valid)
+# 882027567877 # new corrected value is equal to old (using fwrite)
+
+# try with previous version 
+# effort05<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ.csv") # this is even worst 882027568039 # 162 value of difference compared to original data  
+# effort05<-read_csv("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017.csv") # this is very similar to the _addFAO one 882027567984 which is wired ...  
+
+
+# # CHECK when write.csv files were considered: 
+# # check difference by LME - most LME are slightly different in tot effort  
+# one <-effort02 %>% group_by(LME) %>% summarise(e = sum(NomActive)) %>% mutate(version = "02")
+# two <-effort_yannick %>% group_by(LME) %>% summarise(e = sum(NomActive)) %>% mutate(version = "Yannick") # 
+# three<-effort05 %>% group_by(LME) %>% summarise(e = sum(NomActive)) %>% mutate(version = "05")
+# 
+# all<-one %>% 
+#   full_join(two) %>% 
+#   full_join(three) %>% 
+#   mutate(e = round(e)) # # Yannick's and 02 are not exactly the same - there are decimals of differences across some LMEs 
+# all %>% group_by(version) %>% summarise(e = sum(e))
+# all<- all %>% spread(key = version, -LME)
+# 
+# check<-filter(all, is.na(`05`) | (is.na(`02`) & is.na(Yannick)))
+# unique(check$LME)
+# 
+# # pick the worst LME and plot trends - differences are not actually "visible"
+# LME0_effort02<-effort02 %>% filter(LME == 0) %>% 
+#   group_by(Year) %>% 
+#   summarise(e= sum(NomActive)) %>% 
+#   mutate(version = "02")
+# 
+# LME0_effort05<-effort05 %>% filter(LME == 0) %>% 
+#   group_by(Year) %>% 
+#   summarise(e= sum(NomActive)) %>% 
+#   mutate(version = "05")
+# 
+# plot_LME0<-LME0_effort02 %>% 
+#   full_join(LME0_effort05)
+# 
+# # no visible difference .... 
+# ggplot(plot_LME0, aes(x = Year, y = e, group = version, color = version))+
+#   geom_line()
+# 
+# plot_LME0 %>% spread(key = version, -Year)
+# 
+# # try aggregating by sector which is the only thing you did in 05 
+# # 02 is the original
+# LME0_effort02<-effort02 %>% 
+#   # filter(LME == 0) %>% 
+#   group_by(Sector) %>% 
+#   summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
+#   ungroup()            
+# # for LME0 - the code below works adn you get the same results  
+# # industrial = 39914992823
+# # artisanal = 15674634824+2449699510 = 18124334334
+# 
+# # for all LMEs (total of effort)
+# # 1 APW    329157324772.
+# # 2 I      492743814508.
+# # 3 UP      60126428597.
+# LME0_effort02[1,2]+LME0_effort02[3,2] # 389283753370. NOTE when LMEs are different by 1 number is the rounding 
+# 
+# #### RE_RUN 05 at this point and check again 
+# # wondering wether numbers gets rounded when printed...  YES write.csv handles decimals up to 16 position 
+
+# # effort created in 07 - not possible to run the same checks - this is a list 
+# head(effort1)
+# unique(effort1$Year)
+# check<-effort1 %>% 
+#   filter(Year >=1950) %>%
+#   group_by(LME) %>% 
+#   summarise(e = sum(NomActive)) %>% 
+#   ungroup() %>% 
+#   summarise(e = sum(e)) 
+# check
+
+# # effort created in 07 phase 2 
+# head(reconstructed_effort_ref_all)
+# unique(reconstructed_effort_ref_all$Year)
+check<-reconstructed_effort_ref_all %>% 
+  filter(Year >=1950) %>%
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e)) 
+check # 881999081560. DIFFERENCE 2 why is this less than the dataset in previous step (05)?  
+# removed Unknown_EEZ in 07 phase 1 for a tot NomActive of: 28486338
+# 882027567898 - 881999081560 # and that is way it is different!!!! 
+(28486338/881999081560)*100 # 0.003229747
+
+# new 
+# 881999081540
+# 882027567877 - 881999081540 = 28486337 
+
+# # See more on this issue and how you solved it: 
+# # compare 05 with 07_phase2
+# # effort05
+# # reconstructed_effort_ref_all
+# 
+# part1<-effort05 %>% 
+#   filter(Year >=1950) %>% 
+#   group_by(LME) %>% 
+#   summarise(e = sum(NomActive)) %>% 
+#   ungroup() %>% 
+#   mutate(version = "05")
+# 
+# part2<-reconstructed_effort_ref_all %>% 
+#   filter(Year >=1950) %>% 
+#   group_by(LME) %>% 
+#   summarise(e = sum(NomActive)) %>% 
+#   ungroup()%>% 
+#   mutate(version = "07_phase2")
+# 
+# all<-part1 %>% 
+#   full_join(part2) %>% 
+#   spread(key = version, -LME)
+# 
+# # some LMEs are different ... 
+# all %>% filter(is.na(`05`) | is.na(`07_phase2`))
+# 
+# # # problematic LMEs
+# #      LME            e `05`  `07_phase2`
+# #    <dbl>        <dbl> <chr> <chr>      
+# #  1     0 58038967167. NA    07_phase2  
+# #  2     0 58039327212. 05    NA         
+# #  3    12 13267658526. NA    07_phase2  
+# #  4    12 13268557956. 05    NA         
+# #  5    23  7614114396. NA    07_phase2  
+# #  6    23  7614475325. 05    NA         
+# #  7    26 43092855826. NA    07_phase2  
+# #  8    26 43093463729. 05    NA         
+# #  9    28 24863523156. NA    07_phase2  
+# # 10    28 24874318992. 05    NA         
+# # 11    34 48565234934. NA    07_phase2  
+# # 12    34 48566727760. 05    NA         
+# # 13    35 24585207155. NA    07_phase2  
+# # 14    35 24587451733. 05    NA         
+# # 15    36 71388348333. NA    07_phase2  
+# # 16    36 71400073123. 05    NA         
+# 
+# # at which level is this happening? 
+# # check LME 12 from 07_phasae1
+# effort1$LME_12 %>% 
+#   filter(Type == "NomActive", Year >=1950) %>% 
+#   summarise(e = sum(Value)) # 13267658526. this is equal to phase 2 so happening in phase1! 
+# # checking pahse 1 - I deleted the Unknown_EEZ effort and that is why the difference - see above.
+
+## effort created in 08 compared to effort in 07
+check<-reconstructed_effort_ref_all %>% 
+  filter(Year <=2010) %>%
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e)) 
+check # 845623053856.
+
+check<-final_effort %>% 
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e)) 
+check # 845623053856.
+
+# compare latest with previous version: effort created in 07 phase2 and loaded to DKRZ for models used
+# this version was not used anyway...
+dkrz_effort<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1841_2017_EEZ.csv", data.table = FALSE)
+# head(dkrz_effort)
+check<-dkrz_effort %>%
+  filter(Year >=1950) %>%
+  group_by(LME) %>%
+  summarise(e = sum(NomActive)) %>%
+  ungroup() %>%
+  summarise(e = sum(e))
+check # 881999081700. DIFFERENCE 3 more effort here?
+
+# 881999081540 NEW
+881999081700 - 881999081540 # 160 difference - still because the old files were printed using write.csv(). though differnce here is 160 instead of ~21 as per latest dataset.
+
+# compare latest with previous previous version
+dkrz_effort_0<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1841_2017.csv", data.table = FALSE)
+check<-dkrz_effort_0 %>% 
+  filter(Year >=1950) %>% 
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e))
+check # 881999081646. DIFFERENCE 4 why more effort then in latest but less than in EEZ version?
+881999081646 - 881999081540 # higher effort in previous file: 106 (this is what BOATS and FEISTY will have used) and same reason for difference 
+
+# check difference by LME 
+check1<-reconstructed_effort_ref_all %>% 
+  filter(Year >=1950) %>% 
+  group_by(LME) %>% 
+  summarise(e = round(sum(NomActive))) %>% 
+  ungroup() %>% 
+  mutate(version = "addFAO")
+
+check2<-dkrz_effort_0 %>% 
+  filter(Year >=1950) %>% 
+  group_by(LME) %>% 
+  summarise(e = round(sum(NomActive))) %>% 
+  ungroup() %>% 
+  mutate(version = "used") %>% 
+  as.data.frame()
+
+all<-check1 %>% 
+  full_join(check2) %>% 
+  spread(key = version, -LME)
+
+# yes all slightly different as expected becasue of rounding numbers at the all groups level which add up differently 
+# LME 0
+58038967173/58038967111 # I guess this is saying that there is no difference between these numbers... 
+
+### CHECK DIFFERENCE IN PROJECTIONS BETWEEN LATEST AND PREVIOUS DATASET USED BY MODELLERS. 
+
+check<-dkrz_effort_0 %>% 
+  filter(Year <1950) %>% 
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e))
+check
+# 115045639969
+check<-reconstructed_effort_ref_all %>% 
+  filter(Year <1950) %>% 
+  group_by(LME) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  summarise(e = sum(e))
+check
+# 115063612497
+# DIFFERENCE 4 lower effort in predictions for previous version (opposite to effort >1950 which was higher for previous version)  
+115063612497- 115045639969 # = 17972528
+(17972528/115063612497)*100 # 0.01561965% of global effort
+
+# could this be exclusively due to LME0_FAO88? 
+head(reconstructed_effort_ref_all)
+# add back LME_FAO column 
+reconstructed_effort_ref_all <- reconstructed_effort_ref_all %>% 
+  mutate(LME_FAO = ifelse(LME == 0, paste0("LME0_FAO", fao_area), paste0("LME", LME)))
+check<-filter(reconstructed_effort_ref_all, LME_FAO == "LME0_FAO88", Year <=1974)
+sum(check$NomActive) # 9.775079 nope it is not... 
+
+## plot at LME level: 
+# check difference by LME 
+check1<-reconstructed_effort_ref_all %>% 
+  filter(Year <1950) %>% 
+  group_by(LME) %>% 
+  summarise(e = round(sum(NomActive))) %>% 
+  ungroup() %>% 
+  mutate(version = "addFAO")
+
+check2<-dkrz_effort_0 %>% 
+  filter(Year <1950) %>% 
+  group_by(LME) %>% 
+  summarise(e = round(sum(NomActive))) %>% 
+  ungroup() %>% 
+  mutate(version = "used") %>% 
+  as.data.frame()
+
+all<-check1 %>% 
+  full_join(check2) %>% 
+  spread(key = version, -LME)
+
+View(all)
+
+# LME0 is where the discrepancy is because LME0 was re-calculated given new grouping (FAO area)  
+all[1,]
+all[2,]
+1390634384-1372661619 # 17972765 YES IT IS. 
+
+# plot LME0 
+LME0_effort0<-dkrz_effort_0 %>% filter(LME == 0) %>%
+  group_by(Year) %>%
+  summarise(e= sum(NomActive)) %>%
+  mutate(version = "used")
+
+LME0_addFAO<-reconstructed_effort_ref_all %>% filter(LME == 0) %>%
+  group_by(Year) %>%
+  summarise(e= sum(NomActive)) %>%
+  mutate(version = "addFAO")
+
+plot_LME0<-LME0_effort0 %>%
+  full_join(LME0_addFAO) %>% 
+  as.data.frame()
+
+## the reconstructions based on 1 (for effort 0) or multiple (for addFAo effort) GAMs are of course different ... trends depend on fao area data.  
+# small difference - we have been lucky! 
+ggplot(plot_LME0, aes(x = Year, y = e, group = version, color = version))+
+  geom_line()
+
+# plot across LME, EEZ and FAO and across dataset versions 
+# dkrz_effort_0
+# dkrz_effort # for EEZ same name as for new dataset 
+# reconstructed_effort_ref_all
+# effort_yannick # even if this is different as you delete the unknown effort 
+
+### LME - possible across all 3 datasets 
+check1<-dkrz_effort_0 %>% 
+  group_by(Year, LME) %>% # 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "used") %>% 
+  as.data.frame()
+
+check2<-reconstructed_effort_ref_all %>% 
+  group_by(Year, LME) %>% 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "new") %>% 
+  as.data.frame()
+
+check3<-effort_yannick %>% 
+  group_by(Year, LME) %>% 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "original") %>% 
+  as.data.frame()
+
+check4<-final_effort %>% 
+  group_by(Year, LME) %>% 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "final") %>% 
+  as.data.frame()
+
+
+all<-check1 %>% 
+  full_join(check2) %>% 
+  full_join(check3) %>% 
+  full_join(check4)
+
+# LMEs
+all_LME<-split(all, all$LME)
+LME_plot<-list()
+
+for (i in 1:length(all_LME)){
+  # i = 1
+  data<-all_LME[[i]]
+  LME_plot[[i]]<-ggplot(data = data, aes(x = Year, y = tot, group = version, color = version))+
+    geom_line()+
+    ggtitle(paste("LME ",names(all_LME[i])))
+  names(LME_plot)[i]<-names(all_LME[i])
+}
+
+# pdf("Output/LME_check_07_phase2.pdf", height = 8, width = 6)
+pdf("Output/check_final_files_LME.pdf", height = 8, width = 6)
+marrangeGrob(grobs = LME_plot, nrow=2, ncol=1)
+dev.off()
+
+# EEZs - possible across 2 datasets - here using version _EEZ 
+check1<-dkrz_effort %>% 
+  group_by(Year, eez_country_name) %>% # 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "used") %>% 
+  as.data.frame()
+
+check2<-reconstructed_effort_ref_all %>% 
+  group_by(Year, eez_country_name) %>% 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "new") %>% 
+  as.data.frame()
+
+check3<-final_effort %>% 
+  group_by(Year, eez_country_name) %>% 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "final") %>% 
+  as.data.frame()
+
+all<-check1 %>% 
+  full_join(check2) %>% 
+  full_join(check3)
+
+# LMEs
+all_LME<-split(all, all$eez_country_name)
+LME_plot<-list()
+
+for (i in 1:length(all_LME)){
+  data<-all_LME[[i]]
+  LME_plot[[i]]<-ggplot(data = data, aes(x = Year, y = tot, group = version, color = version))+
+    geom_line()+
+    ggtitle(paste("EEZ ",names(all_LME[i])))
+  names(LME_plot)[i]<-names(all_LME[i])
+}
+
+# pdf("Output/EEZ_check_07_phase2.pdf", height = 8, width = 6)
+pdf("Output/check_final_files_EEZ.pdf", height = 8, width = 6)
+marrangeGrob(grobs = LME_plot, nrow=2, ncol=1)
+dev.off()
+
+# FAOs - possible for one dataset only  
+check2<-reconstructed_effort_ref_all %>% 
+  group_by(Year, fao_area) %>% 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "new") %>% 
+  as.data.frame()
+
+check3<-final_effort %>% 
+  group_by(Year, fao_area) %>% 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "final") %>% 
+  as.data.frame()
+
+all<-check2 %>% 
+  full_join(check3)
+
+all_LME<-split(all, all$fao_area)
+LME_plot<-list()
+
+for (i in 1:length(all_LME)){
+  data<-all_LME[[i]]
+  LME_plot[[i]]<-ggplot(data = data, aes(x = Year, y = tot, group = version, color = version))+
+    geom_line()+
+    ggtitle(paste("FAO ",names(all_LME[i])))
+  names(LME_plot)[i]<-names(all_LME[i])
+}
+
+# pdf("Output/FAO_check_07_phase2.pdf", height = 8, width = 6)
+pdf("Output/check_final_files_FAO.pdf", height = 8, width = 6)
+marrangeGrob(grobs = LME_plot, nrow=2, ncol=1)
+dev.off()
+
+# LME + LME0_FAOarea - possible for one dataset only  
+check2<-reconstructed_effort_ref_all %>% 
+  group_by(Year, LME_FAO) %>% 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "new") %>% 
+  as.data.frame()
+
+all_LME<-split(check2, check2$LME_FAO)
+LME_plot<-list()
+
+for (i in 1:length(all_LME)){
+  data<-all_LME[[i]]
+  LME_plot[[i]]<-ggplot(data = data, aes(x = Year, y = tot, group = version, color = version))+
+    geom_line()+
+    ggtitle(names(all_LME[i]))
+  names(LME_plot)[i]<-names(all_LME[i])
+}
+
+# pdf("Output/LME_FAO_check_07_phase2.pdf", height = 8, width = 6)
+pdf("Output/check_final_files_LME_FAO.pdf", height = 8, width = 6)
+marrangeGrob(grobs = LME_plot, nrow=2, ncol=1)
+dev.off()
+
+# EEZ + HighSeas_FAOarea - possible for one dataset only  
+
+### NEED TO CHECK this new column
+new_column<-reconstructed_effort_ref_all %>% 
+  mutate(HighSeas_FAO = ifelse(eez_country_name == "High Seas", paste0("HighSea_FAO_", fao_area), paste0("EEZ_", eez_country_name)))
+
+check2<-new_column %>% 
+  group_by(Year, HighSeas_FAO) %>% 
+  summarise(tot = sum(NomActive)) %>% 
+  ungroup() %>% 
+  mutate(version = "new") %>% 
+  as.data.frame()
+
+all_LME<-split(check2, check2$HighSeas_FAO)
+LME_plot<-list()
+
+for (i in 1:length(all_LME)){
+  data<-all_LME[[i]]
+  LME_plot[[i]]<-ggplot(data = data, aes(x = Year, y = tot, group = version, color = version))+
+    geom_line()+
+    ggtitle(names(all_LME[i]))
+  names(LME_plot)[i]<-names(all_LME[i])
+}
+
+# pdf("Output/EEZ_FAO_check_07_phase2.pdf", height = 8, width = 6)
+pdf("Output/check_final_files_EEZ_FAO.pdf", height = 8, width = 6)
+marrangeGrob(grobs = LME_plot, nrow=2, ncol=1)
+dev.off()
+
+
+
+
+### BY looking at plots 
+# LME OK, they are the same but for LME0 which is dues to spin-up being calculated using multiple gams now
+# EEZ, spin-up is different in same case. is this due to the LME0 being different now? YES, it looks like it
+
+
+# which are the different EEZs by looking at plots?
+# Amer Samoa # all in LME0_FAO77
+# Anguilla # all in LME0_FAO31
+# Antigua Barb # some in LME0_FAO31
+# Barbados # some in LME0_FAO31
+# Bermuda # all in LME0_FAO21 and LME0_FAO31
+# Br Ind Oc Tr # all in LME0_FAO51
+# Br Virgin Is # all in LME0_FAO31
+# Canada # some (small quantity) in LME0_FAO21 - why does Canada cover a huge amount of LMEs?? TO CHECK... 
+# Cook Is. # all in LME0_FAO77
+# Dominica some in LME0_FAO31
+# Ecuador some in LME0_FAO87
+# Faeroe Is some in LME0_FAO27
+# Fiji all in LME0_FAO71 and LME0_FAO81
+# France some in LME0_FAO27 and others - France has EEZ around the world (when using FAO name instead of AdminCountry). 
+# Greenland some in LME0_FAO21 and LME0_FAO27
+# Guadeloupe some in LME0_FAO31
+# Guam all in LME0_FAO71
+# High Seas (as we are not looking into FAO area for the high seas)
+# Iceland
+# Japan
+# Maldives # most in LME0_FAO51
+# ... 
+# Papua N Guin # LME0_FAO71
+# Solomon Is. LME0_FAO71
+
+## enough... 
+
+# Marshall Is
+# Martinique
+# Mauritius
+# Micronesia
+# N Marianas
+# Nauru
+# Nigeria
+# Norfolk I.
+
+
+# not changing 
+# Ghana # in LME0_FAO34 too but very small compared to LME_28
+# Gibraltar # no LME0
+# Greece # no LME 0 
+# Estonia # no LME 0
+# Eritrea # no LME0
+
+
+# do this EEZ contain LME0 and the corresponding LME_FAO values while the others do not (or effort values are very low)? 
+# check1<-dkrz_effort %>% 
+#   filter(eez_country_name == "Anguilla") %>%
+#   group_by(eez_country_name, LME) %>% 
+#   summarise(e = sum(NomActive)) %>% 
+#   ungroup()
+
+# head(reconstructed_effort_ref_all)
+check2<-reconstructed_effort_ref_all %>% 
+  filter(eez_country_name == "Canada") %>%
+  group_by(eez_country_name, LME, fao_area, LME_FAO) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup()
+check2
+
+# Now check Canada - all good by looking at LME map and canada eez map online 
+
+# check2[order(-check2$e),]
+#   eez_country_name   LME fao_area LME_FAO               e
+#    <chr>            <int>    <int> <chr>             <dbl>
+#  1 Canada               9       21 LME_9      16689610419. OK 
+#  2 Canada               8       21 LME_8      11624472533. OK 
+#  3 Canada               2       67 LME_2       6563515892. OK
+#  4 Canada               7       21 LME_7       2046116336. OK
+#  5 Canada              18       21 LME_18      1326674172. OK
+#  6 Canada               0       21 LME0_FAO21  1057207222. OK
+#  7 Canada              55       18 LME_55       242638480. OK
+#  8 Canada              18       18 LME_18       137039422. OK
+#  9 Canada              63       18 LME_63        92543128. OK
+# 10 Canada              66       18 LME_66        81873554. OK
+# 11 Canada              63       21 LME_63        32646999. OK
+# 12 Canada              66       21 LME_66          426097. OK
+# 13 Canada              64       18 LME_64           27711. OK
+
+
+
+
+# check range of values: 
+min(reconstructed_effort_ref_all$NomActive) 
+# check_negative<-filter(reconstructed_effort_ref_all, NomActive<0)
+# unique(check_negative[,c("Year","eez_country_name", "LME", "fao_area")]) 
+# max(reconstructed_effort_ref_all$NomActive) # 233495502
+
+# check previously printed file - OK 
+min(dkrz_effort_0$NomActive)
+min(dkrz_effort$NomActive)
+
+# check LME0  - what's the format? 
+trial<-reconstructed_effort_ref_all %>% 
+  filter(LME == 0) %>% 
+  group_by(eez_country_name) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup()
+
+nrow(trial) # 95 - why are there so many EEZs in LME 0? it makes sense, seee below 
+# View(trial[order(trial$e, decreasing = TRUE), ])
+# is the Indonesia EEZ outside some LME? check website it is actually but still a bit strange that it makes 1/2 of the fishing effort in high seas ... 
+# indo, philippines, japan, png do have EEZ that are overboring LMEs, Au and USA possibly too and becasue of the islands, equador ok too but canada not sure ... 
+# check randomly after Australia: new zealand yes, Chile yes ... 
+# sort(unique(reconstructed_effort_ref_all$eez_country_name))
+
+# check previous file 
+a2<-dkrz_effort_0 %>% 
+  filter(LME == 0) %>% 
+  group_by(eez_country_name) %>% 
+  summarise(e = sum(NomActive)) %>% 
+  ungroup() %>% 
+  as.data.frame()
+
+a2[order(a2$e, decreasing = TRUE), ] # similar but not the same and this depends on 1) consideration of admin counry in old dataset and 2 multiple gams being used for LME0 and new effort file. 
+
+### Check catches -----
+# are FAO, LME and EEZ the same and FGroup etc... (but already checked in 06 on catch data manipulation) - repeat checks in 06 but this time chek also catch data prited in 08
+
+annual<-read_csv("/rd/gem/private/users/yannickr/Reg_catchData/20220606_RegCatchData/CheckCatchTotalsCN.csv")
+catch2<-catch<-fread("/rd/gem/private/users/yannickr/catch_histsoc_1869_2017_EEZ_addFAO.csv", data.table = FALSE)
+catch08<-fread("/rd/gem/private/users/yannickr/DKRZ_EffortFiles/catch-validation_isimip3a_histsoc_1850_2004.csv", data.table = FALSE)
+  
+head(annual)
+unique(annual$Sector)
+annual<-annual %>% 
+  mutate(Sector = ifelse(Sector == "artisanal", "artisanal", "industrial")) %>% 
+  select(-"...6") %>% 
+  mutate(type = "summaries")
+
+trial<-catch2 %>% 
+  group_by(Year, Sector) %>% 
+  summarise(Reported = sum(Reported , na.rm = TRUE),
+            IUU = sum(IUU , na.rm = TRUE),
+            Discards = sum(Discards , na.rm = TRUE)) %>% 
+  mutate(type = "dataset")
+
+# note here cut to 2004
+trialB<-catch08 %>% 
+  group_by(Year, Sector) %>% 
+  summarise(Reported = sum(Reported , na.rm = TRUE),
+            IUU = sum(IUU , na.rm = TRUE),
+            Discards = sum(Discards , na.rm = TRUE)) %>% 
+  mutate(type = "catch08")
+
+trial2<-trial %>% 
+  full_join(annual) %>% 
+  full_join(trialB) %>% 
+  as.data.frame(trial2)
+
+trial2<-trial2 %>% 
+  gather("key", "catch", -Year, -type, -Sector)
+
+plot<-ggplot(trial2, aes(x = Year, y = catch, group = key, color = key)) + # color = Sector, group = Sector 
+  geom_point()+
+  theme_bw()+
+  facet_grid(type~Sector)
+
+# # version where we consider EEZ name and not administrative country and where we add FAO regions to the merging (previously there in code but committed given work on effort)
+# pdf("Output/catch_compare_EEZ_addFAO.pdf", width = 10, height=7)
+# plot
+# dev.off()
+
+# check nesting:  
+# sum fao = sum LME = sum EEZ 
+# OK but not sure this check is meaningful
+check<-catch2 %>% 
+  mutate(sum = Reported + IUU + Discards)
+
+lme_check<-check %>% filter(Year <=2004) %>% group_by(LME) %>% summarise(a = sum(sum)) %>% ungroup() 
+lme_check %>% summarise(sum(a)) # 6940447558.# with 2010 filter 5332567792
+
+eez_check<-check %>% filter(Year <=2004) %>% group_by(eez_country_name) %>% summarise(a = sum(sum)) %>% ungroup() 
+eez_check %>% summarise(sum(a)) # 6940447558.# with 2010 filter 5332567792
+
+fao_check<-check %>% filter(Year <=2004) %>% group_by(fao_area) %>% summarise(a = sum(sum)) %>% ungroup() 
+fao_check %>% summarise(sum(a)) # 6940447558.# with 2010 filter 5332567792
+
+
+check<-catch08 %>% 
+  mutate(sum = Reported + IUU + Discards)
+
+lme_check<-check %>% group_by(LME) %>% summarise(a = sum(sum)) %>% ungroup() 
+lme_check %>% summarise(sum(a)) #  5332567792
+
+eez_check<-check  %>% group_by(eez_country_name) %>% summarise(a = sum(sum)) %>% ungroup() 
+eez_check %>% summarise(sum(a)) # 5332567792
+
+fao_check<-check %>% group_by(fao_area) %>% summarise(a = sum(sum)) %>% ungroup() 
+fao_check %>% summarise(sum(a)) # 5332567792
+
+## all good 
+
+# plot by fao, lme, eez - cannot check with original as no such grouping there
+# use both catch2 and catch08 or just catch 08 as you've checked they match in total catches 
+
+
+```
+
