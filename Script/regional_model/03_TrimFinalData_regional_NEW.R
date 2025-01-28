@@ -13,12 +13,13 @@ library(raster)
 # see 05 for comments - this is the regional version 
 
 #### load file ----
-# yannick_dir_new <- "/rd/gem/private/users/yannickr"
-yannick_dir_new <- "/home/ubuntu/gem/private/users/yannickr" # this is the filepath Gage uses
+
+home_dir <- "/home/ubuntu/gem" # this is the filepath Gage uses; change to whatever your home directory is (probably rd/gem)
+yannick_dir_new <- file.path(home_dir, "private/users/yannickr") 
 
 effort_new <- fread(file.path(yannick_dir_new, "all_effort_aggregated_regional_models_new.csv")) # this is the new data gage made
 head(effort_new)
-# unique(effort_new$region)
+unique(effort_new$region)
 
 #### aggregate artisanal power and unpower ----
 # aggregate artisanal
@@ -74,7 +75,8 @@ plot
 dev.off()
 
 # compare LME and regional polygons files 
-mask_df <- fread("/home/ubuntu/gem/private/fishmip_inputs/ISIMIP3b/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3b.csv")
+mask_df <- fread(file.path(home_dir, "/private/shared_resources/FishMIP_regional_models_raster/FishMIP_regional_05deg.csv"))
+# mask_df <- fread("/home/ubuntu/gem/private/fishmip_inputs/ISIMIP3b/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3b.csv")
 unique(mask_df$region)
 med <- mask_df %>% 
   filter(region == "Mediterranean Sea EwE") %>%
@@ -87,7 +89,7 @@ pdf("Output/new/med_poly.pdf")
 plot(med_raster)
 dev.off() ## looks good
 
-test_shp <- st_read(file.path("/home/ubuntu/gem/private/fishmip_inputs", "ISIMIP3b/fishmip_regions/FishMIP_regional_models"))
+test_shp <- st_read(file.path(home_dir, "private/shared_resources/FishMIP_regional_models"))
 test_med_shp <- test_shp %>%
   filter(region == "Mediterranean Sea EwE") # looks good 
 
@@ -137,4 +139,4 @@ plot
 dev.off()
 
 ##### print data ----
-write.csv(effort_spinup, "/home/ubuntu/gem/private/users/yannickr/effort_histsoc_1950_2017_regional_model.csv")
+write.csv(effort_spinup, file.path(yannick_dir_new, "effort_histsoc_1950_2017_regional_model.csv"))

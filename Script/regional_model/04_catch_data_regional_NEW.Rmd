@@ -30,7 +30,7 @@ library(RColorBrewer)
 
 select <- dplyr::select
 
-gem_dir <- file.path("/home/ubuntu/gem") # make this whatever your gem filepath is 
+gem_dir <- file.path("/home/ubuntu/gem") # make this whatever your gem filepath is; probably /rd/gem
 
 ```
 
@@ -53,7 +53,7 @@ tic()
 recent_ind <- fread(file.path(gem_dir, "/private/users/yannickr/Reg_catchData/20220606_RegCatchData/NonHistoricalIndCami_toCombine/NonHistoricalIndCami.csv"))
 head(recent_ind) 
 nrow(recent_ind)
-toc()
+toc() # 69 seconds
 recent_ind <- lazy_dt(recent_ind)
 
 # all data merged 
@@ -66,7 +66,7 @@ catch <- hist %>%
 yannick_dir <- file.path(gem_dir, "private/users/yannickr")
 
 # New version of region mask 
-Model_region <- read_csv(file.path(gem_dir, "private/fishmip_inputs/ISIMIP3b/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3b.csv")) %>% 
+Model_region <- read_csv(file.path(gem_dir, "private/shared_resources/FishMIP_regional_models_raster/FishMIP_regional_05deg.csv")) %>% 
   lazy_dt()
 
 tic()
@@ -79,7 +79,7 @@ catch2 <- catch %>%
             Discards = sum(Discards, na.rm = TRUE)) %>% 
   ungroup() %>% 
   as.data.table() 
-toc() # 260 sec
+toc() # 100 sec
 
 ```
 

@@ -20,10 +20,10 @@ library(terra)
 
 select <- dplyr::select
 
-home_dir <- file.path("/home/ubuntu/gem") # change this to the correct home dir... will most likely be /rd/gem
+home_dir <- file.path("/home/ubuntu/gem") # change this to the correct home dir for you... will most likely be /rd/gem
 
 yannick_dir <- file.path(home_dir, "private/users/yannickr")
-model_region_dir <- file.path(home_dir, "private/fishmip_inputs/ISIMIP3b/fishmip_regions") # regional shapefile mask from Denisse: https://github.com/Fish-MIP/FishMIP_regions/tree/main/scripts
+model_region_dir <- file.path(home_dir, "private/shared_resources/FishMIP_regional_models/") # regional shapefile mask from Denisse: https://github.com/Fish-MIP/FishMIP_regions/tree/main/scripts; /home/ubuntu/gem/private/shared_resources/FishMIP_regional_models
 
 ```
 
@@ -43,23 +43,16 @@ eez_base_raster <- rast(eez_file, type = "xyz")
 # nc_data <- nc_open(file.path(model_region_dir, "fishMIP_regional_mask_ISIMIP3.nc"))
 # print(nc_data)
 
-shp_data <- st_read(file.path(model_region_dir, "FishMIP_regional_models/"))
+shp_data <- st_read(file.path(model_region_dir))
 
 unique(shp_data$region)
 
 test <- shp_data %>% st_drop_geometry()
 
-test_old <- readRDS(file =  file.path(yannick_dir, "Cells_LatLon_model_regions.rds"))
-old_csv <- read_csv("/home/ubuntu/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3a.csv") 
+# test_old <- readRDS(file =  file.path(yannick_dir, "Cells_LatLon_model_regions.rds"))
+# old_csv <- read_csv("/home/ubuntu/gem/private/fishmip_inputs/ISIMIP3a/fishmip_regions/Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3a.csv")
 
 ## ok we just need to rasterize to 0.5 by 0.5 and save as a csv; we need to do this by looping through each region, because many regions overlap, so just a single rasterization will not work. 
-# shp_data$region_id <- as.numeric(as.factor(shp_data$region))
-# 
-# # Step 2: Use this numeric ID for rasterization
-# shp_to_raster <- fasterize(shp_data, base_raster, field = "region_id")
-# 
-# # Step 3 (Optional): Create a lookup table to relate region_id to region names
-# region_lookup <- data.frame(region = unique(shp_data$region), region_id = unique(shp_data$region_id))
 
 shp_to_rast_csv_final <- data.frame(x = NA, y = NA, region = NA)
 
@@ -85,22 +78,22 @@ shp_to_rast_csv_final <- rbind(shp_to_raster, shp_to_rast_csv_final)
 # test_2 <- old_csv %>%
 #   filter(region == "MediterraneanSea")  ## ok perfect
 # 
-# # check alaska 
+# # check alaska
 # test <- shp_to_rast_csv_final %>%
 #   filter(region == "Gulf Alaska")
 # 
 # test_2 <- old_csv %>%
 #   filter(region == "Gulf.Alaska")  ## ok perfect
-
+unique(shp_to_rast_csv_final$region) # 41, good 
 
 
 shp_to_rast_csv_final <- shp_to_rast_csv_final %>%
-  filter(!is.na(region)) %>%
-  rename(Lon = x, Lat = y)
+  filter(!is.na(region)) %>% # remove NAs
+  rename(Lon = x, Lat = y) # rename lat and lon
 
 ## save as a csv 
 
-write.csv(shp_to_rast_csv_final, file.path(model_region_dir, "Masks_netcdf_csv/fishMIP_regional_05deg_ISIMIP3b.csv"), row.names = FALSE)
+write.csv(shp_to_rast_csv_final, file.path(home_dir, "private/shared_resources/FishMIP_regional_models_raster/FishMIP_regional_05deg.csv"), row.names = FALSE)
 
 
 ```
