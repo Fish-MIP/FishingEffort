@@ -109,6 +109,135 @@ check<-effort_yannick %>%
   summarise(e = sum(e)) 
 check # 882027567877.
 
+#### NEW CHECKS - Check reconstructed_effort_ref_all because of Colleen's strange patters in FGroups - all good here.  
+head(effort_yannick)
+head(reconstructed_effort_ref_all)
+
+trial<-reconstructed_effort_ref_all %>% 
+  group_by(Year, FGroup) %>% 
+  summarise(NomActive = sum(NomActive))
+
+ggplot(trial, aes(x = Year, y= NomActive, group = FGroup, color = FGroup))+
+  geom_line()
+
+ggplot(filter(trial, Year >=1948), aes(x = Year, y= NomActive, group = FGroup, color = FGroup))+
+  geom_line()
+
+unique(trial$FGroup)
+colnames(reconstructed_effort_ref_all)
+
+trial2<-reconstructed_effort_ref_all %>% 
+  # dplyr::filter(grepl('demersal', FGroup)) %>% 
+  filter(FGroup %in% c("demersal>=90cm", "pelagic<30cm", "pelagic>=90cm")) %>% 
+  group_by(Year, FGroup, LME) %>% 
+  summarise(NomActive = sum(NomActive, na.rm = T))
+
+ggplot(filter(trial2, LME == 57), aes(x = Year, y= NomActive, group = FGroup, color = FGroup))+
+  geom_line()+
+  facet_wrap(~LME, scale = "free")
+
+trial2<-trial %>% 
+  dplyr::filter(grepl('demersal', FGroup)) %>% 
+  group_by(Year) %>% 
+  summarise(NomActive = sum(NomActive))
+
+ggplot(filter(trial2, Year >= 1961), aes(x = Year, y= NomActive))+
+  geom_line()
+
+# forage fishery
+trial2<-trial %>% 
+  dplyr::filter(grepl('demersal', FGroup)) %>% 
+  group_by(Year, FGroup) %>% 
+  summarise(NomActive = sum(NomActive))
+
+## check final_effort matches 
+
+trialf<-final_effort %>% 
+  group_by(Year, FGroup) %>% 
+  summarise(NomActive = sum(NomActive))
+
+ggplot(filter(trial, Year <=2010), aes(x = Year, y= NomActive, group = FGroup, color = FGroup))+
+  geom_line()
+
+ggplot(trialf, aes(x = Year, y= NomActive, group = FGroup, color = FGroup))+
+  geom_line()
+
+## check the file dowloaded from DKRZ matches
+final_effort_dkrz<-fread("/rd/gem/private/users/yannickr/trial/effort_isimip3a_histsoc_1841_2010.csv", data.table = FALSE) 
+
+triald<-final_effort %>% 
+  group_by(Year, FGroup) %>% 
+  summarise(NomActive = sum(NomActive))
+
+ggplot(triald, aes(x = Year, y= NomActive, group = FGroup, color = FGroup))+
+  geom_line()
+
+# not finding Colleen's strange patterns - check catches 
+catch2<-fread("/rd/gem/private/users/yannickr/catch_histsoc_1869_2017_EEZ_addFAO.csv", data.table = FALSE)
+head(catch2)
+
+# all aggregated  
+trialc<-catch2 %>% 
+  mutate(catch = Reported+IUU+Discards) %>% 
+  group_by(Year, FGroup) %>% 
+  summarise(catch = sum(catch))
+
+ggplot(trialc, aes(x = Year, y= catch, group = FGroup, color = FGroup))+
+  geom_line()+
+  facet_wrap(~FGroup)
+
+ggplot(filter(trialc, Year >=1948), aes(x = Year, y= catch, group = FGroup, color = FGroup))+
+  geom_line()
+
+# check demersal 
+  
+trialc2<-trialc %>% 
+  dplyr::filter(grepl('demersal', FGroup)) %>% 
+  group_by(Year, FGroup) %>% 
+  summarise(catch = sum(catch))
+
+ggplot(filter(trialc2, Year >= 1948), aes(x = Year, y= catch, group = FGroup, color = FGroup))+
+  geom_line()
+
+## check by type e.g. reported, IUU.. 
+
+trialc<-catch2 %>% 
+  dplyr::filter(grepl('demersal', FGroup)) %>% 
+  group_by(Year, FGroup) %>% 
+  summarise(Reported = sum(Reported))
+
+ggplot(filter(trialc, Year >=1948), aes(x = Year, y= Reported, group = FGroup, color = FGroup))+
+  geom_line()
+
+unique(catch2$FGroup)
+
+trialc<-catch2 %>% 
+  dplyr::filter(grepl('pelagic', FGroup)) %>% 
+  group_by(Year, FGroup) %>% 
+  summarise(Reported = sum(Reported))
+
+ggplot(filter(trialc, Year >=1948), aes(x = Year, y= Reported, group = FGroup, color = FGroup))+
+  geom_line()
+
+trialc<-catch2 %>% 
+  dplyr::filter(grepl('demersal', FGroup)) %>% 
+  group_by(Year, FGroup) %>% 
+  summarise(IUU = sum(IUU))
+
+ggplot(filter(trialc, Year >=1948), aes(x = Year, y= IUU, group = FGroup, color = FGroup))+
+  geom_line()
+
+trialc<-catch2 %>% 
+  dplyr::filter(grepl('demersal', FGroup)) %>% 
+  group_by(Year, FGroup) %>% 
+  summarise(Discards = sum(Discards))
+
+ggplot(filter(trialc, Year >=1948), aes(x = Year, y= Discards, group = FGroup, color = FGroup))+
+  geom_line()
+
+
+### END new checks
+
 # effort printed in 05 - 1951-2017
 effort05<-fread("/rd/gem/private/users/yannickr/effort_histsoc_1950_2017_EEZ_addFAO.csv", data.table = FALSE) 
 

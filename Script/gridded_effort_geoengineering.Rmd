@@ -1,0 +1,46 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-06-11"
+editor_options: 
+  chunk_output_type: console
+---
+
+provide gridded effort for geoengineering experiments (all available years) using code from 05
+
+```{r}
+
+rm(list=ls())
+
+# # load libraries 
+library("tidyverse")
+library("data.table")
+
+# gridded -----
+
+yannick_dir_new <- "/rd/gem/private/users/yannickr/otherdata"
+effort<-read.csv(file.path(yannick_dir_new, "GriddedEffortby_FGroup_FishingCountry_Sector.csv"))
+colnames(effort)
+effort2<-effort[-1,]
+
+# provide gridded industrial ----
+
+IndustrialEffort<-effort2 %>% 
+  filter(Sector == "I") %>% 
+  group_by(Lat, Lon, Year) %>% 
+  summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
+  ungroup() 
+
+write.csv(IndustrialEffort, "/rd/gem/private/users/yannickr/gridded_industrial_effort_histsoc_1950_2017.csv")
+
+# provide effort gridded artisanal ----
+
+ArtisanalEffort<-effort2 %>% 
+  filter(Sector != "I") %>% 
+  group_by(Lat, Lon, Year) %>% 
+  summarise(NomActive = sum(NomActive, na.rm = TRUE)) %>% 
+  ungroup() 
+
+write.csv(ArtisanalEffort, "/rd/gem/private/users/yannickr/gridded_artisanal_effort_histsoc_1950_2017.csv")
+
+```
